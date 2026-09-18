@@ -1,3 +1,4 @@
+import re
 import logging
 from fastapi import FastAPI, HTTPException, status, Request
 from fastapi.exceptions import RequestValidationError
@@ -42,19 +43,37 @@ def startup_event():
 @app.post("/api/v1/chat", status_code=status.HTTP_200_OK)
 def handle_chat(payload: QueryPayload):
     try:
-        user_query = payload.query.strip()
+        user_query = payload.query.strip().lower()
+        
         if not user_query:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Tu mensaje está en blanco. Por favor, escribe una pregunta."
             )
 
+        if re.search(r'[^aeiou \d]{5,}', user_query) or len(user_query) < 3:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No logré entender tu mensaje. ¿Podrías escribirlo con otras palabras?"
+            )
+
+        saludos = ["hola", "buenos dias", "buenas tardes", "buenas noches", "que tal", "hey", "ola"]
+        if user_query in saludos:
+            return {
+                "ticket_id": None,
+                "query": user_query,
+                "response": "¡Hola! Soy el asistente de la cafetería de la facultad. Pregúntame sobre nuestro menú, horarios o métodos de pago.",
+                "routed_to": "bot",
+                "confidence_score": 1.0,
+                "status": "resolved"
+            }
+
         context, confidence = nlp_engine.retrieve_and_score(user_query)
 
         if confidence < 0.25:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Tu consulta no parece estar relacionada con los servicios de la cafetería de la facultad. Intenta preguntarlo de otra forma."
+                detail="Tu consulta no parece estar relacionada con la cafetería. Intenta preguntarlo de otra forma."
             )
 
         if confidence >= nlp_engine.confidence_threshold:
@@ -87,9 +106,8 @@ def handle_chat(payload: QueryPayload):
         logger.error(f"Error critico: {str(exc)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Tuvimos un pequeño problema técnico de nuestro lado. Por favor, intenta de nuevo en unos minutos."
+            detail="Problema técnico interno. Intenta de nuevo en unos minutos."
         )
-
 @app.get("/api/v1/ticket/{ticket_id}")
 def check_ticket(ticket_id: int):
     ticket = get_ticket(ticket_id)
