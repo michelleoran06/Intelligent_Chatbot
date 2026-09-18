@@ -1,18 +1,23 @@
 import streamlit as st
 import pandas as pd
 import requests
-import time
 
-st.set_page_config(page_title="Dashboard Cafetería", page_icon="🎧", layout="wide")
+st.set_page_config(page_title="Panel de Operador", page_icon="🎧", layout="wide")
 
 st.markdown("""
 <style>
-    .metric-card { background-color: #1e1e1e; padding: 20px; border-radius: 10px; margin-bottom: 20px; }
+    .header-box {
+        background-color: #2c3e50;
+        color: white;
+        padding: 15px;
+        border-radius: 8px;
+        text-align: center;
+        margin-bottom: 25px;
+    }
 </style>
 """, unsafe_allow_html=True)
 
-st.title("🎧 Panel de Operador - Cafetería FI")
-st.markdown("---")
+st.markdown('<div class="header-box"><h1>🎧 Panel de Operador - Casos Escalados</h1><p>Atiende las consultas que el bot no pudo responder.</p></div>', unsafe_allow_html=True)
 
 BASE_URL = "https://intelligent-chatbot-std8.onrender.com"
 
@@ -25,27 +30,25 @@ def load_escalated_cases():
                 return pd.DataFrame(data)
         return pd.DataFrame()
     except Exception:
-        st.error("Error conectando con la base de datos central.")
+        st.error("Error conectando con el servidor. Verifica que el backend esté corriendo.")
         return pd.DataFrame()
 
 df = load_escalated_cases()
 
 if not df.empty:
-    st.dataframe(
-        df[['id', 'timestamp', 'query']], 
-        use_container_width=True, 
-        hide_index=True
-    )
+    st.subheader(f"En cola: {len(df)} chats pendientes")
+    st.dataframe(df, use_container_width=True)
     
-    st.markdown("### Atender ticket pendiente")
+    st.markdown("---")
+    st.subheader("Atender caso")
     col1, col2 = st.columns([1, 2])
     
     with col1:
-        case_id = st.selectbox("Selecciona el ID del ticket:", df['id'])
+        case_id = st.selectbox("ID del ticket a responder:", df['id'])
     with col2:
-        respuesta = st.text_area("Respuesta del operador:", height=100)
+        respuesta = st.text_area("Escribe tu respuesta para el usuario:")
         
-    if st.button("Enviar respuesta y cerrar ticket", type="primary"):
+    if st.button("Enviar Respuesta y Cerrar Caso", type="primary"):
         if respuesta.strip():
             try:
                 res = requests.post(
@@ -54,15 +57,17 @@ if not df.empty:
                     timeout=10
                 )
                 if res.status_code == 200:
-                    st.success(f"Ticket {case_id} cerrado correctamente.")
-                    time.sleep(1)
+                    st.success(f"¡Excelente! Respuesta enviada. El ticket {case_id} ha sido resuelto.")
                     st.rerun()
+                else:
+                    st.error("Ocurrió un error al intentar cerrar el caso.")
             except Exception:
-                st.error("Error enviando la resolución.")
+                st.error("Error conectando con la API para resolver el caso.")
         else:
-            st.warning("Debes escribir una respuesta.")
+            st.warning("Por favor escribe una respuesta antes de enviar.")
 else:
-    st.info("Todo en orden. No hay alumnos esperando respuesta en este momento.")
+    st.info("¡Todo al día! No hay chats en la cola de espera.")
 
-time.sleep(10)
-st.rerun()
+st.markdown("---")
+if st.button("🔄 Actualizar tabla manualmente"):
+    st.rerun()

@@ -9,7 +9,6 @@ from vector_store import seed_knowledge_base
 from patterns import EscalationSubject, OperatorDashboardNotifier, BotResponseStrategy, HumanFallbackStrategy
 from nlp_engine import NLPEngine
 
-
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("ChatbotAPI")
 
@@ -27,7 +26,7 @@ escalation_subject.attach(OperatorDashboardNotifier())
 
 bot_strategy = BotResponseStrategy()
 fallback_strategy = HumanFallbackStrategy(escalation_subject)
-
+nlp_engine = NLPEngine(confidence_threshold=0.70)
 
 class QueryPayload(BaseModel):
     user_id: str = Field(..., min_length=1, max_length=50)
@@ -51,42 +50,29 @@ def handle_chat(payload: QueryPayload):
                 detail="Tu mensaje está en blanco. Por favor, escribe una pregunta."
             )
 
-        if len(user_query) < 3 or re.search(r'(.)\1{4,}', user_query) or re.search(r'[^aeiouáéíóú \d\.\,\?]{4,}', user_query) or re.match(r'^[jkasdhg]{4,}$', user_query.replace(" ", "")):
+        if re.search(r'[^aeiou \d]{6,}', user_query) or len(user_query) < 2:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="No logré entender tu mensaje. ¿Podrías escribirlo con otras palabras?"
+                detail="¡Ups! No logré entender tu mensaje. ¿Podrías escribirlo con otras palabras?"
             )
 
-        saludos = ["hola", "buenos dias", "buenas tardes", "buenas noches", "que tal", "hey", "ola", "buenas"]
+        saludos = ["hola", "buenos dias", "buenas tardes", "buenas noches", "que tal", "hey", "ola", "saludos"]
         if user_query in saludos:
             return {
                 "ticket_id": None,
                 "query": user_query,
-                "response": "¡Hola! Soy el asistente de la cafetería de la facultad. Pregúntame sobre nuestro menú, horarios o métodos de pago.",
+                "response": "¡Hola! 👋 Soy el asistente de la cafetería de la facultad. Pregúntame sobre nuestro menú, horarios o métodos de pago.",
                 "routed_to": "bot",
                 "confidence_score": 1.0,
                 "status": "resolved"
             }
 
-        intent_boosts = {
-            "horario apertura cierre horas": ["horario", "hora", "abren", "cierran", "servicio", "tarde", "temprano"],
-            "ubicacion edificio planta llegar": ["ubicacion", "donde", "llegar", "edificio", "lugar", "encuentran", "ubicados"],
-            "metodo pago tarjeta efectivo": ["pago", "pagar", "tarjeta", "efectivo", "transferencia", "aceptan", "cobran"],
-            "menu comida desayuno platillos": ["menu", "comer", "desayuno", "comida", "venden", "chilaquiles", "tienen"]
-        }
+        context, confidence = nlp_engine.retrieve_and_score(user_query)
 
-        boosted_query = user_query
-        for extra_context, words in intent_boosts.items():
-            if any(w in user_query for w in words):
-                boosted_query = f"{user_query} {extra_context}"
-                break
-
-        context, confidence = nlp_engine.retrieve_and_score(boosted_query)
-
-        if confidence < 0.35:
+        if confidence < 0.25:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Tu consulta no parece estar relacionada con la cafetería. Intenta preguntarlo de otra forma."
+                detail="Mmm, parece que me preguntas algo fuera de mi conocimiento sobre la cafetería 🤔. Intenta preguntarlo de otra forma."
             )
 
         if confidence >= nlp_engine.confidence_threshold:
@@ -121,7 +107,6 @@ def handle_chat(payload: QueryPayload):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Problema técnico interno. Intenta de nuevo en unos minutos."
         )
-        
 @app.get("/api/v1/ticket/{ticket_id}")
 def check_ticket(ticket_id: int):
     ticket = get_ticket(ticket_id)

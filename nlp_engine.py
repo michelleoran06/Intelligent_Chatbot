@@ -1,43 +1,37 @@
+import re
+import unicodedata
 from vector_store import collection
 
-class BotStrategy:
-    def generate_response(self, query, context):
-        return {
-            "message": context,
-            "routed_to": "bot",
-            "status": "resolved"
-        }
-
-class FallbackStrategy:
-    def generate_response(self, query, context):
-        return {
-            "message": "Tu consulta requiere asistencia personalizada. Te estamos transfiriendo con un operador.",
-            "routed_to": "human",
-            "status": "pending"
-        }
-
 class NLPEngine:
-    def _init_(self):
-        self.confidence_threshold = 0.65
+    def __init__(self, confidence_threshold: float = 0.70):
+        self.confidence_threshold = confidence_threshold
 
-    def retrieve_and_score(self, query):
-        try:
-            results = collection.query(
-                query_texts=[query],
-                n_results=1
-            )
-            
-            if results['distances'] and results['distances'][0]:
-                distance = results['distances'][0][0]
-                # Invertimos la distancia para que funcione como tu "confidence_score"
-                confidence = 1.0 / (1.0 + distance)
-                context = results['metadatas'][0][0]['respuesta']
-                return context, float(confidence)
-            else:
-                return "", 0.0
-        except Exception:
+    def preprocess(self, text: str) -> str:
+        text = text.lower().strip()
+        # Remove accents
+        text = unicodedata.normalize('NFKD', text).encode('ASCII', 'ignore').decode('utf-8')
+        # Remove non-alphanumeric characters except spaces
+        text = re.sub(r"[^\w\s]", "", text)
+        return text
+
+    def retrieve_and_score(self, query: str):
+        cleaned_query = self.preprocess(query)
+        
+        results = collection.query(
+            query_texts=[cleaned_query],
+            n_results=1
+        )
+
+        metadatas = results.get("metadatas", [[]])[0]
+        distances = results.get("distances", [[]])[0]
+
+        if not metadatas or not distances:
             return "", 0.0
 
-nlp_engine = NLPEngine()
-bot_strategy = BotStrategy()
-fallback_strategy = FallbackStrategy()
+        distance = distances[0]
+        
+        confidence_score = max(0.0, 1.0 - (distance / 2.5))
+        
+        respuesta = metadatas[0].get("respuesta", "") if metadatas else ""
+        
+        return respuesta, round(confidence_score, 4)
