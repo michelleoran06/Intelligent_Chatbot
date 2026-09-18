@@ -6,24 +6,15 @@ st.set_page_config(page_title="Soporte Cafetería", page_icon="☕", layout="cen
 
 st.markdown("""
 <style>
-    .stApp {
-        background-color: #f7f9fc;
-    }
     .chat-header {
         font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        color: #2c3e50;
+        color: #ffffff;
         text-align: center;
         padding: 20px;
-        background: white;
+        background: linear-gradient(90deg, #2c3e50, #3498db);
         border-radius: 10px;
         box-shadow: 0 4px 6px rgba(0,0,0,0.1);
         margin-bottom: 20px;
-    }
-    .bot-msg {
-        background-color: #e3f2fd;
-        border-radius: 10px;
-        padding: 10px;
-        margin: 5px 0;
     }
 </style>
 """, unsafe_allow_html=True)

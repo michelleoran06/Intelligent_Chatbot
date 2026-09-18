@@ -50,10 +50,13 @@ def handle_chat(payload: QueryPayload):
                 detail="Tu mensaje está en blanco. Por favor, escribe una pregunta."
             )
 
-        if re.search(r'[^aeiou \d]{6,}', user_query) or len(user_query) < 2:
+        # Detección de incoherencias (teclazos al azar o muy corto)
+        letras_repetidas = re.search(r'(.)\1{4,}', user_query) # ej. aaaaaa, jjjjj
+        muchas_consonantes = re.search(r'[^aeiou \d]{5,}', user_query)
+        if letras_repetidas or muchas_consonantes or len(user_query.replace(" ", "")) < 3:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="¡Ups! No logré entender tu mensaje. ¿Podrías escribirlo con otras palabras?"
+                detail="¡Ups! Tu mensaje parece estar mal escrito o incompleto. ¿Podrías escribirlo de nuevo?"
             )
 
         saludos = ["hola", "buenos dias", "buenas tardes", "buenas noches", "que tal", "hey", "ola", "saludos"]
@@ -69,10 +72,11 @@ def handle_chat(payload: QueryPayload):
 
         context, confidence = nlp_engine.retrieve_and_score(user_query)
 
-        if confidence < 0.25:
+        # Si la confianza es muy baja (ej. texto aleatorio que pasó el filtro pero no se parece a nada)
+        if confidence < 0.35:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Mmm, parece que me preguntas algo fuera de mi conocimiento sobre la cafetería 🤔. Intenta preguntarlo de otra forma."
+                detail="Mmm, parece que me preguntas algo fuera de mi conocimiento sobre la cafetería 🤔. Por favor intenta preguntarlo de otra forma."
             )
 
         if confidence >= nlp_engine.confidence_threshold:

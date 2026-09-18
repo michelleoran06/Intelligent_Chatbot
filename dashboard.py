@@ -1,6 +1,14 @@
 import streamlit as st
 import pandas as pd
 import requests
+import time
+
+try:
+    from streamlit_autorefresh import st_autorefresh
+    # Actualizar cada 10 segundos (10000 milisegundos)
+    st_autorefresh(interval=10000, limit=None, key="ticket_refresh")
+except ImportError:
+    pass # Si no tienen la librería instalada, no se rompe y sigue en modo manual.
 
 st.set_page_config(page_title="Panel de Operador", page_icon="🎧", layout="wide")
 
@@ -46,18 +54,21 @@ if not df.empty:
     with col1:
         case_id = st.selectbox("ID del ticket a responder:", df['id'])
     with col2:
-        respuesta = st.text_area("Escribe tu respuesta para el usuario:")
+        # Se agrega un 'key' para que no se borre el texto al auto-actualizar
+        respuesta = st.text_area("Escribe tu respuesta para el usuario:", key="respuesta_input")
         
     if st.button("Enviar Respuesta y Cerrar Caso", type="primary"):
-        if respuesta.strip():
+        if st.session_state.respuesta_input.strip():
             try:
                 res = requests.post(
                     f"{BASE_URL}/api/v1/ticket/{case_id}/resolve",
-                    json={"manual_response": respuesta},
+                    json={"manual_response": st.session_state.respuesta_input},
                     timeout=10
                 )
                 if res.status_code == 200:
                     st.success(f"¡Excelente! Respuesta enviada. El ticket {case_id} ha sido resuelto.")
+                    st.session_state.respuesta_input = "" # Limpiar el texto
+                    time.sleep(1)
                     st.rerun()
                 else:
                     st.error("Ocurrió un error al intentar cerrar el caso.")
