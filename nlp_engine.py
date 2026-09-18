@@ -6,7 +6,7 @@ class NLPEngine:
     def __init__(self, confidence_threshold: float = 0.65):
         self.confidence_threshold = confidence_threshold
         
-        # Hardcoded intents for Spanish to bypass English model limitations
+        
         self.intents = {
             "horarios": {
                 "keywords": ["hora", "horario", "abren", "cierran", "temprano", "tarde", "dias", "sabado"],
@@ -36,7 +36,7 @@ class NLPEngine:
         cleaned_query = self.preprocess(query)
         words = set(cleaned_query.split())
         
-        # 1. Intent Keyword Matching (Fast & Accurate for Spanish)
+    
         best_intent_match = None
         best_match_count = 0
         
@@ -50,7 +50,7 @@ class NLPEngine:
             # High confidence if we hit keywords
             return best_intent_match, 0.85
 
-        # 2. Fallback to ChromaDB (Vector Search)
+     
         try:
             results = collection.query(
                 query_texts=[cleaned_query],
