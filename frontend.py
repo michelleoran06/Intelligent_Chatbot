@@ -36,10 +36,11 @@ if prompt := st.chat_input("Escribe tu pregunta..."):
         st.markdown(prompt)
 
     try:
+        # Aumentamos el timeout a 60s por si Render está "despertando" (cold start)
         response = requests.post(
             f"{BASE_URL}/api/v1/chat",
             json={"user_id": "usuario_demo", "query": prompt},
-            timeout=10
+            timeout=60
         )
         
         data = response.json()
@@ -61,10 +62,10 @@ if prompt := st.chat_input("Escribe tu pregunta..."):
                 with st.spinner("Esperando a que un operador atienda tu caso (esto puede tardar unos segundos)..."):
                     resolved = False
                     attempts = 0
-                    max_attempts = 20 # Wait up to 60 seconds
+                    max_attempts = 40 # Wait up to 60 seconds (1.5s * 40)
                     
                     while not resolved and attempts < max_attempts:
-                        time.sleep(3)
+                        time.sleep(1.5)
                         attempts += 1
                         try:
                             check_res = requests.get(f"{BASE_URL}/api/v1/ticket/{ticket_id}", timeout=5)

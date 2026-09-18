@@ -65,6 +65,26 @@ def load_escalated_cases():
 with st.spinner("Buscando nuevos casos en la cola..."):
     df = load_escalated_cases()
 
+if 'previous_count' not in st.session_state:
+    st.session_state.previous_count = len(df) if not df.empty else 0
+
+current_count = len(df) if not df.empty else 0
+
+if current_count > st.session_state.previous_count:
+    st.toast("¡Nuevo caso asignado! Un usuario necesita ayuda.", icon="🚨")
+    # Reproducir un sonido de notificación sutil
+    components.html(
+        """
+        <audio autoplay>
+            <source src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" type="audio/mpeg">
+        </audio>
+        """,
+        height=0,
+        width=0,
+    )
+
+st.session_state.previous_count = current_count
+
 if not df.empty:
     st.markdown(f'<div><span class="status-badge">🚨 {len(df)} chats pendientes</span></div><br>', unsafe_allow_html=True)
     

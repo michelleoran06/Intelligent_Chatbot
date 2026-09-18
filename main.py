@@ -30,7 +30,7 @@ nlp_engine = NLPEngine(confidence_threshold=0.65)
 
 class QueryPayload(BaseModel):
     user_id: str = Field(..., min_length=1, max_length=50)
-    query: str = Field(..., min_length=2, max_length=500)
+    query: str = Field(..., min_length=2, max_length=2000)
 
 class ResolvePayload(BaseModel):
     manual_response: str = Field(..., min_length=1)
