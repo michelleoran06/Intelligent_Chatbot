@@ -2,7 +2,17 @@ import streamlit as st
 import requests
 import time
 
-st.title("Intelligent Chatbot - Soporte")
+st.set_page_config(page_title="Asistente Cafetería FI", page_icon="☕")
+
+st.markdown("""
+<style>
+    .stChatMessage { border-radius: 12px; padding: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+    [data-testid="stHeader"] { background-color: transparent; }
+</style>
+""", unsafe_allow_html=True)
+
+st.title("☕ Asistente Virtual")
+st.caption("Cafetería de la Facultad de Ingeniería. Respuestas rápidas a tus dudas.")
 
 BASE_URL = "https://intelligent-chatbot-std8.onrender.com"
 
@@ -13,21 +23,23 @@ for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
-if prompt := st.chat_input("Escribe tu pregunta..."):
+if prompt := st.chat_input("Escribe tu pregunta aquí..."):
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
 
     try:
-        response = requests.post(
-            f"{BASE_URL}/api/v1/chat",
-            json={"user_id": "usuario_demo", "query": prompt}
-        )
-        
+        with st.spinner("Conectando con el servidor... (puede tardar un poco si está inactivo)"):
+            response = requests.post(
+                f"{BASE_URL}/api/v1/chat",
+                json={"user_id": "alumno_fi", "query": prompt},
+                timeout=45
+            )
+            
         data = response.json()
 
         if response.status_code != 200:
-            error_reply = f" {data.get('detail', 'Ocurrió un error inesperado.')}"
+            error_reply = f"⚠️ {data.get('detail', 'Error inesperado.')}"
             with st.chat_message("assistant"):
                 st.markdown(error_reply)
             st.session_state.messages.append({"role": "assistant", "content": error_reply})
@@ -40,20 +52,25 @@ if prompt := st.chat_input("Escribe tu pregunta..."):
 
             if data.get("routed_to") == "human":
                 ticket_id = data.get("ticket_id")
-                with st.spinner("Esperando a que un operador atienda tu caso..."):
+                with st.spinner("Transfiriendo tu caso a un operador de la cafetería..."):
                     resolved = False
                     while not resolved:
                         time.sleep(3)
-                        check_res = requests.get(f"{BASE_URL}/api/v1/ticket/{ticket_id}")
+                        check_res = requests.get(f"{BASE_URL}/api/v1/ticket/{ticket_id}", timeout=10)
                         if check_res.status_code == 200:
                             ticket_data = check_res.json()
                             if ticket_data.get("routed_to") == "human_resolved":
                                 manual_reply = ticket_data.get("response")
                                 resolved = True
                                 
-                    with st.chat_message("assistant"):
-                        st.markdown(f"*Operador:* {manual_reply}")
-                    st.session_state.messages.append({"role": "assistant", "content": f"*Operador:* {manual_reply}"})
+                    with st.chat_message("assistant", avatar="🧑‍🍳"):
+                        st.markdown(f"*Personal de Cafetería:* {manual_reply}")
+                    st.session_state.messages.append({"role": "assistant", "content": f"*Personal de Cafetería:* {manual_reply}"})
 
+    except requests.exceptions.Timeout:
+        timeout_msg = "⚠️ El servidor estaba dormido y tardó en responder. Por favor, envía tu pregunta de nuevo."
+        with st.chat_message("assistant"):
+            st.markdown(timeout_msg)
+        st.session_state.messages.append({"role": "assistant", "content": timeout_msg})
     except requests.exceptions.RequestException:
-        st.error("Error de conexión. Verifica que el servidor remoto esté funcionando.")
+        st.error("Error crítico de red. Verifica tu conexión a internet.")
