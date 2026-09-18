@@ -50,6 +50,6 @@ class HumanFallbackStrategy(ResponseStrategy):
         )
         return {
             "routed_to": "human",
-            "message": "Hmm, parece que no tengo la respuesta exacta a eso. 😅 No te preocupes, te estoy transfiriendo con un humano para que te ayude mejor.",
+            "message": "Hmm, no tengo la respuesta exacta a eso. No te preocupes, te estoy transfiriendo con un humano para que te ayude mejor.",
             "status": "escalated"
         }
