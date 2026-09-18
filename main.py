@@ -51,13 +51,13 @@ def handle_chat(payload: QueryPayload):
                 detail="Tu mensaje está en blanco. Por favor, escribe una pregunta."
             )
 
-        if re.search(r'[^aeiou \d]{5,}', user_query) or len(user_query) < 3:
+        if len(user_query) < 3 or re.search(r'(.)\1{4,}', user_query) or re.search(r'(ja|js|je|ha|he|xd){2,}', user_query) or re.search(r'[^aeiou \d\.\,\?]{5,}', user_query):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="No logré entender tu mensaje. ¿Podrías escribirlo con otras palabras?"
             )
 
-        saludos = ["hola", "buenos dias", "buenas tardes", "buenas noches", "que tal", "hey", "ola"]
+        saludos = ["hola", "buenos dias", "buenas tardes", "buenas noches", "que tal", "hey", "ola", "buenas"]
         if user_query in saludos:
             return {
                 "ticket_id": None,
@@ -70,7 +70,7 @@ def handle_chat(payload: QueryPayload):
 
         context, confidence = nlp_engine.retrieve_and_score(user_query)
 
-        if confidence < 0.25:
+        if confidence < 0.35:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Tu consulta no parece estar relacionada con la cafetería. Intenta preguntarlo de otra forma."
@@ -108,6 +108,7 @@ def handle_chat(payload: QueryPayload):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Problema técnico interno. Intenta de nuevo en unos minutos."
         )
+        
 @app.get("/api/v1/ticket/{ticket_id}")
 def check_ticket(ticket_id: int):
     ticket = get_ticket(ticket_id)
