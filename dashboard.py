@@ -49,7 +49,7 @@ def load_escalated_cases():
     except Exception:
         return pd.DataFrame()
 
-# Uso de la función nativa fragment (si está disponible) para refrescar cada 10s
+
 fragment_decorator = getattr(st, "fragment", getattr(st, "experimental_fragment", lambda run_every: lambda f: f))
 
 @fragment_decorator(run_every=10)
@@ -116,6 +116,6 @@ def show_dashboard():
                 else:
                     st.warning("Por favor escribe una respuesta antes de enviar.")
     else:
-        st.success("✨ ¡Todo al día! No hay chats en la cola de espera. (Buscando automáticamente cada 10s...)")
+        st.success("✨ ¡Todo al día! No hay chats en la cola de espera.")
 
 show_dashboard()
