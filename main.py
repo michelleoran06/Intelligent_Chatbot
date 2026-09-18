@@ -26,7 +26,7 @@ escalation_subject.attach(OperatorDashboardNotifier())
 
 bot_strategy = BotResponseStrategy()
 fallback_strategy = HumanFallbackStrategy(escalation_subject)
-nlp_engine = NLPEngine(confidence_threshold=0.70)
+nlp_engine = NLPEngine(confidence_threshold=0.50)
 
 class QueryPayload(BaseModel):
     user_id: str = Field(..., min_length=1, max_length=50)
@@ -52,7 +52,7 @@ def handle_chat(payload: QueryPayload):
 
         # Detección de incoherencias (teclazos al azar o muy corto)
         letras_repetidas = re.search(r'(.)\1{4,}', user_query) # ej. aaaaaa, jjjjj
-        muchas_consonantes = re.search(r'[^aeiou \d]{5,}', user_query)
+        muchas_consonantes = re.search(r'[^aeiou \d]{4,}', user_query) # atrapa jakjakjdkad (kjdk)
         if letras_repetidas or muchas_consonantes or len(user_query.replace(" ", "")) < 3:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -73,7 +73,7 @@ def handle_chat(payload: QueryPayload):
         context, confidence = nlp_engine.retrieve_and_score(user_query)
 
         # Si la confianza es muy baja (ej. texto aleatorio que pasó el filtro pero no se parece a nada)
-        if confidence < 0.35:
+        if confidence < 0.25:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Mmm, parece que me preguntas algo fuera de mi conocimiento sobre la cafetería 🤔. Por favor intenta preguntarlo de otra forma."

@@ -12,18 +12,18 @@ def seed_knowledge_base():
         pass
 
     documents = [
-        "a que hora abren la cafeteria a que hora cierran horarios servicio desde que hora estan que dias abren sabado",
+        "a que hora abren la cafeteria a que hora cierran horarios servicio desde que hora estan que dias abren sabado temprano",
         "cuales son los metodos de pago aceptan tarjeta efectivo transferencia puedo pagar con terminal",
         "donde esta la cafeteria ubicacion como llego en que edificio estan",
-        "que desayunos venden huevos chilaquiles omelette enchiladas sopes",
-        "tienen antojitos quesadillas molletes tostadas tacos ahogados dorados gringa burrito",
-        "que tipos de chilaquiles tienen con que vienen cecina pollo huevo sencillos",
-        "venden sandwiches o hamburguesas pechuga pierna club",
-        "que paquetes de comida tienen comidas completas filete cecina arrachera pechuga milanesa",
-        "venden pizza que sabores de pizza hawaiana carnes frias molida entera rebanada",
-        "que bebidas tienen para tomar jugos aguas licuados",
+        "que desayunos venden menu de la mañana huevos chilaquiles omelette enchiladas sopes comida alimentos",
+        "tienen antojitos quesadillas molletes tostadas tacos ahogados dorados gringa burrito comida alimentos menu",
+        "que tipos de chilaquiles tienen con que vienen cecina pollo huevo sencillos comida alimentos menu",
+        "venden sandwiches o hamburguesas pechuga pierna club comida alimentos menu",
+        "que paquetes de comida tienen comidas completas filete cecina arrachera pechuga milanesa alimentos menu",
+        "venden pizza que sabores de pizza hawaiana carnes frias molida entera rebanada menu",
+        "que bebidas tienen para tomar jugos aguas licuados sed",
         "tienen postres dulces galletas obleas churritos amaranto enjambre",
-        "tienen menu del dia comida corrida que incluye precio"
+        "tienen menu del dia comida corrida que incluye precio comida alimentos que hay de comer hoy menu general que venden de comer"
     ]
     
     metadatas = [
