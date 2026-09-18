@@ -36,7 +36,7 @@ if prompt := st.chat_input("Escribe tu pregunta..."):
         st.markdown(prompt)
 
     try:
-        # Aumentamos el timeout a 60s por si Render está "despertando" (cold start)
+       
         response = requests.post(
             f"{BASE_URL}/api/v1/chat",
             json={"user_id": "usuario_demo", "query": prompt},
@@ -62,7 +62,7 @@ if prompt := st.chat_input("Escribe tu pregunta..."):
                 with st.spinner("Esperando a que un operador atienda tu caso (esto puede tardar unos segundos)..."):
                     resolved = False
                     attempts = 0
-                    max_attempts = 40 # Wait up to 60 seconds (1.5s * 40)
+                    max_attempts = 40
                     
                     while not resolved and attempts < max_attempts:
                         time.sleep(1.5)
@@ -79,7 +79,7 @@ if prompt := st.chat_input("Escribe tu pregunta..."):
                                         st.markdown(f"👨‍💻 **Operador:** {manual_reply}")
                                     st.session_state.messages.append({"role": "assistant", "content": f"👨‍💻 **Operador:** {manual_reply}"})
                         except requests.exceptions.RequestException:
-                            pass # Ignore temporary connection errors during polling
+                            pass 
                     
                     if not resolved:
                         timeout_msg = "Lo siento, nuestros operadores están ocupados en este momento. Por favor, intenta de nuevo más tarde."
