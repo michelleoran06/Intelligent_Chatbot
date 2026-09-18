@@ -6,28 +6,6 @@ import streamlit.components.v1 as components
 
 st.set_page_config(page_title="Panel de Operador", page_icon="🎧", layout="wide")
 
-# Script de auto-refresh cada 10 segundos (recarga la página solo si no estás escribiendo)
-components.html(
-    """
-    <script>
-    setTimeout(function() {
-        var isTyping = false;
-        var textareas = window.parent.document.querySelectorAll('textarea');
-        textareas.forEach(function(ta) {
-            if (ta.value.trim() !== '') {
-                isTyping = true;
-            }
-        });
-        if (!isTyping) {
-            window.parent.location.reload();
-        }
-    }, 10000);
-    </script>
-    """,
-    height=0,
-    width=0,
-)
-
 st.markdown("""
 <style>
     .header-box {
@@ -71,69 +49,73 @@ def load_escalated_cases():
     except Exception:
         return pd.DataFrame()
 
-with st.spinner("Buscando nuevos casos en la cola..."):
-    df = load_escalated_cases()
+# Uso de la función nativa fragment (si está disponible) para refrescar cada 10s
+fragment_decorator = getattr(st, "fragment", getattr(st, "experimental_fragment", lambda run_every: lambda f: f))
 
-if 'previous_count' not in st.session_state:
-    st.session_state.previous_count = len(df) if not df.empty else 0
-
-current_count = len(df) if not df.empty else 0
-
-if current_count > st.session_state.previous_count:
-    st.toast("¡Nuevo caso asignado! Un usuario necesita ayuda.", icon="🚨")
-    # Reproducir un sonido de notificación sutil
-    components.html(
-        """
-        <audio autoplay>
-            <source src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" type="audio/mpeg">
-        </audio>
-        """,
-        height=0,
-        width=0,
-    )
-
-st.session_state.previous_count = current_count
-
-if not df.empty:
-    st.markdown(f'<div><span class="status-badge">🚨 {len(df)} chats pendientes</span></div><br>', unsafe_allow_html=True)
+@fragment_decorator(run_every=10)
+def show_dashboard():
+    with st.spinner("Buscando nuevos casos en la cola..."):
+        df = load_escalated_cases()
     
-    st.dataframe(
-        df[['id', 'user_id', 'query', 'timestamp']], 
-        use_container_width=True,
-        hide_index=True
-    )
+    if 'previous_count' not in st.session_state:
+        st.session_state.previous_count = len(df) if not df.empty else 0
     
-    st.markdown("---")
-    st.subheader("💬 Atender caso")
+    current_count = len(df) if not df.empty else 0
     
-    # Uso de st.form para evitar el bug del doble click y envíos accidentales
-    with st.form(key="resolve_form", clear_on_submit=True):
-        col1, col2 = st.columns([1, 2])
+    if current_count > st.session_state.previous_count:
+        st.toast("¡Nuevo caso asignado! Un usuario necesita ayuda.", icon="🚨")
+        components.html(
+            """
+            <audio autoplay>
+                <source src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" type="audio/mpeg">
+            </audio>
+            """,
+            height=0, width=0,
+        )
+    
+    st.session_state.previous_count = current_count
+    
+    if not df.empty:
+        st.markdown(f'<div><span class="status-badge">🚨 {len(df)} chats pendientes</span></div><br>', unsafe_allow_html=True)
         
-        with col1:
-            case_id = st.selectbox("ID del ticket a responder:", df['id'])
-        with col2:
-            respuesta = st.text_area("Escribe tu respuesta para el usuario:")
+        st.dataframe(
+            df[['id', 'user_id', 'query', 'timestamp']], 
+            use_container_width=True,
+            hide_index=True
+        )
+        
+        st.markdown("---")
+        st.subheader("💬 Atender caso")
+        
+        with st.form(key="resolve_form", clear_on_submit=True):
+            col1, col2 = st.columns([1, 2])
             
-        submit_btn = st.form_submit_button("Enviar Respuesta y Cerrar Caso", type="primary")
-        
-        if submit_btn:
-            if respuesta.strip():
-                try:
-                    res = requests.post(
-                        f"{BASE_URL}/api/v1/ticket/{case_id}/resolve",
-                        json={"manual_response": respuesta},
-                        timeout=10
-                    )
-                    if res.status_code == 200:
-                        st.success(f"¡Excelente! Respuesta enviada. El ticket {case_id} ha sido resuelto.")
-                        time.sleep(1.5) # Pausa para que el usuario lea el mensaje de éxito
-                        st.rerun()
-                    else:
-                        st.error("Ocurrió un error al intentar cerrar el caso.")
-                except Exception:
-                    st.error("Error conectando con la API para resolver el caso.")
-            else:
-                st.warning("Por favor escribe una respuesta antes de enviar.")
-else:
-    st.success("✨ ¡Todo al día! No hay chats en la cola de espera. (Buscando automáticamente...)")
+            with col1:
+                case_id = st.selectbox("ID del ticket a responder:", df['id'])
+            with col2:
+                respuesta = st.text_area("Escribe tu respuesta para el usuario:")
+                
+            submit_btn = st.form_submit_button("Enviar Respuesta y Cerrar Caso", type="primary")
+            
+            if submit_btn:
+                if respuesta.strip():
+                    try:
+                        res = requests.post(
+                            f"{BASE_URL}/api/v1/ticket/{case_id}/resolve",
+                            json={"manual_response": respuesta},
+                            timeout=10
+                        )
+                        if res.status_code == 200:
+                            st.success(f"¡Excelente! Respuesta enviada. El ticket {case_id} ha sido resuelto.")
+                            time.sleep(1.5)
+                            st.rerun()
+                        else:
+                            st.error("Ocurrió un error al intentar cerrar el caso.")
+                    except Exception:
+                        st.error("Error conectando con la API para resolver el caso.")
+                else:
+                    st.warning("Por favor escribe una respuesta antes de enviar.")
+    else:
+        st.success("✨ ¡Todo al día! No hay chats en la cola de espera. (Buscando automáticamente cada 10s...)")
+
+show_dashboard()
