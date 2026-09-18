@@ -50,9 +50,9 @@ def handle_chat(payload: QueryPayload):
                 detail="Tu mensaje está en blanco. Por favor, escribe una pregunta."
             )
 
-        # Detección de incoherencias (teclazos al azar o muy corto)
-        letras_repetidas = re.search(r'(.)\1{4,}', user_query) # ej. aaaaaa, jjjjj
-        muchas_consonantes = re.search(r'[^aeiou \d]{4,}', user_query) # atrapa jakjakjdkad (kjdk)
+        
+        letras_repetidas = re.search(r'(.)\1{4,}', user_query)
+        muchas_consonantes = re.search(r'[^aeiou \d]{4,}', user_query) 
         if letras_repetidas or muchas_consonantes or len(user_query.replace(" ", "")) < 3:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -72,7 +72,7 @@ def handle_chat(payload: QueryPayload):
 
         context, confidence = nlp_engine.retrieve_and_score(user_query)
 
-        # Si la confianza es muy baja (ej. texto aleatorio que pasó el filtro pero no se parece a nada)
+        
         if confidence < 0.25:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
