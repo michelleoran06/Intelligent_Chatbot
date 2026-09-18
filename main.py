@@ -51,7 +51,7 @@ def handle_chat(payload: QueryPayload):
                 detail="Tu mensaje está en blanco. Por favor, escribe una pregunta."
             )
 
-        if len(user_query) < 3 or re.search(r'(.)\1{4,}', user_query) or re.search(r'(ja|js|je|ha|he|xd){2,}', user_query) or re.search(r'[^aeiou \d\.\,\?]{5,}', user_query):
+        if len(user_query) < 3 or re.search(r'(.)\1{4,}', user_query) or re.search(r'[^aeiouáéíóú \d\.\,\?]{4,}', user_query) or re.match(r'^[jkasdhg]{4,}$', user_query.replace(" ", "")):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="No logré entender tu mensaje. ¿Podrías escribirlo con otras palabras?"
