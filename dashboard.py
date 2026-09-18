@@ -29,7 +29,7 @@ if not df.empty:
         if respuesta.strip():
             try:
                 res = requests.post(
-                    f"http://127.0.0.1:8000/api/v1/ticket/{case_id}/resolve",
+                    f"[https://intelligent-chatbot-std8.onrender.com/api/v1/ticket/](https://intelligent-chatbot-std8.onrender.com/api/v1/ticket/){case_id}/resolve",
                     json={"manual_response": respuesta}
                 )
                 if res.status_code == 200:
