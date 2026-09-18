@@ -3,10 +3,11 @@ from fastapi import FastAPI, HTTPException, status, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
-from database import save_log, update_ticket, get_ticket
+from database import save_log, update_ticket, get_ticket, get_escalated_tickets
 from vector_store import seed_knowledge_base
 from patterns import EscalationSubject, OperatorDashboardNotifier, BotResponseStrategy, HumanFallbackStrategy
 from nlp_engine import NLPEngine
+
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("ChatbotAPI")
@@ -103,3 +104,7 @@ def check_ticket(ticket_id: int):
 def resolve_ticket_endpoint(ticket_id: int, payload: ResolvePayload):
     update_ticket(ticket_id, payload.manual_response)
     return {"status": "success"}
+
+@app.get("/api/v1/tickets/escalated")
+def fetch_escalated_tickets():
+    return get_escalated_tickets()
