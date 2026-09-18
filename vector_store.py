@@ -33,5 +33,5 @@ def seed_knowledge_base():
         ids=ids
     )
 
-if _name_ == "_main_":
+if __name__ == "__main__":
     seed_knowledge_base()
