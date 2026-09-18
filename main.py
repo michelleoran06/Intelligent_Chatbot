@@ -68,7 +68,20 @@ def handle_chat(payload: QueryPayload):
                 "status": "resolved"
             }
 
-        context, confidence = nlp_engine.retrieve_and_score(user_query)
+        intent_boosts = {
+            "horario apertura cierre horas": ["horario", "hora", "abren", "cierran", "servicio", "tarde", "temprano"],
+            "ubicacion edificio planta llegar": ["ubicacion", "donde", "llegar", "edificio", "lugar", "encuentran", "ubicados"],
+            "metodo pago tarjeta efectivo": ["pago", "pagar", "tarjeta", "efectivo", "transferencia", "aceptan", "cobran"],
+            "menu comida desayuno platillos": ["menu", "comer", "desayuno", "comida", "venden", "chilaquiles", "tienen"]
+        }
+
+        boosted_query = user_query
+        for extra_context, words in intent_boosts.items():
+            if any(w in user_query for w in words):
+                boosted_query = f"{user_query} {extra_context}"
+                break
+
+        context, confidence = nlp_engine.retrieve_and_score(boosted_query)
 
         if confidence < 0.35:
             raise HTTPException(
