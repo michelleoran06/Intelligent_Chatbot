@@ -54,18 +54,32 @@ if prompt := st.chat_input("Escribe tu pregunta aquí..."):
                 ticket_id = data.get("ticket_id")
                 with st.spinner("Transfiriendo tu caso a un operador de la cafetería..."):
                     resolved = False
-                    while not resolved:
+                    max_attempts = 20
+                    attempts = 0
+                    manual_reply = ""
+                    
+                    while not resolved and attempts < max_attempts:
                         time.sleep(3)
-                        check_res = requests.get(f"{BASE_URL}/api/v1/ticket/{ticket_id}", timeout=10)
-                        if check_res.status_code == 200:
-                            ticket_data = check_res.json()
-                            if ticket_data.get("routed_to") == "human_resolved":
-                                manual_reply = ticket_data.get("response")
-                                resolved = True
-                                
-                    with st.chat_message("assistant", avatar="🧑‍🍳"):
-                        st.markdown(f"*Personal de Cafetería:* {manual_reply}")
-                    st.session_state.messages.append({"role": "assistant", "content": f"*Personal de Cafetería:* {manual_reply}"})
+                        attempts += 1
+                        try:
+                            check_res = requests.get(f"{BASE_URL}/api/v1/ticket/{ticket_id}", timeout=5)
+                            if check_res.status_code == 200:
+                                ticket_data = check_res.json()
+                                if ticket_data.get("status") == "resolved" or ticket_data.get("routed_to") == "human_resolved":
+                                    manual_reply = ticket_data.get("response")
+                                    resolved = True
+                        except requests.exceptions.RequestException:
+                            pass
+                            
+                    if resolved:
+                        with st.chat_message("assistant", avatar="🧑‍🍳"):
+                            st.markdown(f"*Personal de Cafetería:* {manual_reply}")
+                        st.session_state.messages.append({"role": "assistant", "content": f"*Personal de Cafetería:* {manual_reply}"})
+                    else:
+                        error_timeout = "⚠️ Tuvimos un problema de conexión de nuestro lado o nuestros operadores están muy ocupados. Por favor, intenta enviar tu duda nuevamente."
+                        with st.chat_message("assistant"):
+                            st.markdown(error_timeout)
+                        st.session_state.messages.append({"role": "assistant", "content": error_timeout})
 
     except requests.exceptions.Timeout:
         timeout_msg = "⚠️ El servidor estaba dormido y tardó en responder. Por favor, envía tu pregunta de nuevo."
