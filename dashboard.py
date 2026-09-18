@@ -6,12 +6,21 @@ import streamlit.components.v1 as components
 
 st.set_page_config(page_title="Panel de Operador", page_icon="🎧", layout="wide")
 
-# Script de auto-refresh cada 10 segundos
+# Script de auto-refresh cada 10 segundos (recarga la página solo si no estás escribiendo)
 components.html(
     """
     <script>
     setTimeout(function() {
-        window.parent.document.dispatchEvent(new Event('streamlit:rerun'));
+        var isTyping = false;
+        var textareas = window.parent.document.querySelectorAll('textarea');
+        textareas.forEach(function(ta) {
+            if (ta.value.trim() !== '') {
+                isTyping = true;
+            }
+        });
+        if (!isTyping) {
+            window.parent.location.reload();
+        }
     }, 10000);
     </script>
     """,
