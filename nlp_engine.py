@@ -1,5 +1,5 @@
 import os
-from vector_store import vector_store
+from vector_store import collection
 import google.generativeai as genai
 
 class BotStrategy:
@@ -41,8 +41,21 @@ class NLPEngine:
         self.confidence_threshold = 0.65
 
     def retrieve_and_score(self, query):
-        context, confidence = vector_store.search(query)
-        return context, float(confidence)
+        try:
+            results = collection.query(
+                query_texts=[query],
+                n_results=1
+            )
+            
+            if results['distances'] and results['distances'][0]:
+                distance = results['distances'][0][0]
+                confidence = 1.0 / (1.0 + distance)
+                context = results['metadatas'][0][0]['respuesta']
+                return context, float(confidence)
+            else:
+                return "", 0.0
+        except Exception:
+            return "", 0.0
 
 nlp_engine = NLPEngine()
 bot_strategy = BotStrategy()
