@@ -27,7 +27,7 @@ escalation_subject.attach(OperatorDashboardNotifier())
 
 bot_strategy = BotResponseStrategy()
 fallback_strategy = HumanFallbackStrategy(escalation_subject)
-nlp_engine = NLPEngine(confidence_threshold=0.70)
+
 
 class QueryPayload(BaseModel):
     user_id: str = Field(..., min_length=1, max_length=50)
