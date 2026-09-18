@@ -4,6 +4,8 @@ import time
 
 st.title("Intelligent Chatbot - Soporte")
 
+BASE_URL = "https://intelligent-chatbot-std8.onrender.com"
+
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
@@ -18,14 +20,14 @@ if prompt := st.chat_input("Escribe tu pregunta..."):
 
     try:
         response = requests.post(
-            "https://intelligent-chatbot-std8.onrender.com",
+            f"{BASE_URL}/api/v1/chat",
             json={"user_id": "usuario_demo", "query": prompt}
         )
         
         data = response.json()
 
         if response.status_code != 200:
-            error_reply = f"⚠️ {data.get('detail', 'Ocurrió un error inesperado.')}"
+            error_reply = f" {data.get('detail', 'Ocurrió un error inesperado.')}"
             with st.chat_message("assistant"):
                 st.markdown(error_reply)
             st.session_state.messages.append({"role": "assistant", "content": error_reply})
@@ -42,7 +44,7 @@ if prompt := st.chat_input("Escribe tu pregunta..."):
                     resolved = False
                     while not resolved:
                         time.sleep(3)
-                        check_res = requests.get(f"[https://intelligent-chatbot-std8.onrender.com/api/v1/ticket/](https://intelligent-chatbot-std8.onrender.com/api/v1/ticket/){ticket_id}")
+                        check_res = requests.get(f"{BASE_URL}/api/v1/ticket/{ticket_id}")
                         if check_res.status_code == 200:
                             ticket_data = check_res.json()
                             if ticket_data.get("routed_to") == "human_resolved":
@@ -50,8 +52,8 @@ if prompt := st.chat_input("Escribe tu pregunta..."):
                                 resolved = True
                                 
                     with st.chat_message("assistant"):
-                        st.markdown(f"**Operador:** {manual_reply}")
-                    st.session_state.messages.append({"role": "assistant", "content": f"**Operador:** {manual_reply}"})
+                        st.markdown(f"*Operador:* {manual_reply}")
+                    st.session_state.messages.append({"role": "assistant", "content": f"*Operador:* {manual_reply}"})
 
     except requests.exceptions.RequestException:
-        st.error("Error de conexión. Verifica que el servidor esté funcionando.")
+        st.error("Error de conexión. Verifica que el servidor remoto esté funcionando.")
