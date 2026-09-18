@@ -57,3 +57,19 @@ def get_ticket(ticket_id: int):
         return None
     finally:
         session.close()
+
+def get_escalated_tickets():
+    session = SessionLocal()
+    try:
+        tickets = session.query(ConversationLog).filter(ConversationLog.routed_to == 'human').order_by(ConversationLog.timestamp.desc()).all()
+        return [
+            {
+                "id": t.id, 
+                "user_id": t.user_id, 
+                "query": t.query, 
+                "timestamp": t.timestamp.isoformat()
+            } 
+            for t in tickets
+        ]
+    finally:
+        session.close()
