@@ -1,32 +1,49 @@
-import re
-from vector_store import collection
+import os
+from vector_store import vector_store
+import google.generativeai as genai
 
-class NLPEngine:
-    def __init__(self, confidence_threshold: float = 0.70):
-        self.confidence_threshold = confidence_threshold
+class BotStrategy:
+    def _init_(self):
+        self.api_key = os.getenv("GEMINI_API_KEY")
+        if self.api_key:
+            genai.configure(api_key=self.api_key)
+            self.model = genai.GenerativeModel('gemini-1.5-flash')
+        else:
+            self.model = None
 
-    def preprocess(self, text: str) -> str:
-        text = text.lower().strip()
-        text = re.sub(r"[^\w\s]", "", text)
-        return text
+    def generate_response(self, query, context):
+        if self.model:
+            prompt = f"Eres el asistente de la cafetería de la Facultad de Ingeniería. Responde la duda basándote solo en este contexto:\n\n{context}\n\nPregunta: {query}"
+            try:
+                response = self.model.generate_content(prompt)
+                message = response.text
+            except Exception:
+                message = context
+        else:
+            message = context
 
-    def retrieve_and_score(self, query):
-        query_lower = query.lower()
-    
-        intent_boosts = {
-            "horario apertura cierre horas": ["horario", "hora", "abren", "cierran", "servicio"],
-            "ubicacion edificio planta llegar": ["ubicacion", "donde", "llegar", "edificio", "lugar", "encuentran"],
-            "metodo pago tarjeta efectivo": ["pago", "pagar", "tarjeta", "efectivo", "transferencia", "aceptan"],
-            "menu comida desayuno platillos": ["menu", "comer", "desayuno", "comida", "venden", "chilaquiles"]
+        return {
+            "message": message,
+            "routed_to": "bot",
+            "status": "resolved"
         }
 
-        boosted_query = query_lower
-        for extra_context, words in intent_boosts.items():
-            if any(w in query_lower for w in words):
-                boosted_query = f"{query_lower} {extra_context}"
-                break
+class FallbackStrategy:
+    def generate_response(self, query, context):
+        return {
+            "message": "Tu consulta requiere asistencia personalizada. Te estamos transfiriendo con un operador.",
+            "routed_to": "human",
+            "status": "pending"
+        }
 
-        context, confidence = self.vector_store.search(boosted_query)
-    
-        return context, confidence
-    
+class NLPEngine:
+    def _init_(self):
+        self.confidence_threshold = 0.65
+
+    def retrieve_and_score(self, query):
+        context, confidence = vector_store.search(query)
+        return context, float(confidence)
+
+nlp_engine = NLPEngine()
+bot_strategy = BotStrategy()
+fallback_strategy = FallbackStrategy()
