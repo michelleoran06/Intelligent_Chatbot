@@ -18,7 +18,7 @@ if prompt := st.chat_input("Escribe tu pregunta..."):
 
     try:
         response = requests.post(
-            "http://127.0.0.1:8000/api/v1/chat",
+            "https://intelligent-chatbot-std8.onrender.com",
             json={"user_id": "usuario_demo", "query": prompt}
         )
         
@@ -42,7 +42,7 @@ if prompt := st.chat_input("Escribe tu pregunta..."):
                     resolved = False
                     while not resolved:
                         time.sleep(3)
-                        check_res = requests.get(f"http://127.0.0.1:8000/api/v1/ticket/{ticket_id}")
+                        check_res = requests.get(f"[https://intelligent-chatbot-std8.onrender.com/api/v1/ticket/](https://intelligent-chatbot-std8.onrender.com/api/v1/ticket/){ticket_id}")
                         if check_res.status_code == 200:
                             ticket_data = check_res.json()
                             if ticket_data.get("routed_to") == "human_resolved":
