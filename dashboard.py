@@ -1,16 +1,23 @@
 import streamlit as st
 import pandas as pd
 import requests
-from sqlalchemy import create_engine
 
 st.set_page_config(layout="wide")
 st.title("Panel de Operador - Casos Escalados")
 
-engine = create_engine("sqlite:///./chatbot_audit.db")
+BASE_URL = "https://intelligent-chatbot-std8.onrender.com"
 
 def load_escalated_cases():
-    query = "SELECT id, user_id, query, timestamp FROM conversation_logs WHERE routed_to = 'human' ORDER BY timestamp DESC"
-    return pd.read_sql(query, engine)
+    try:
+        response = requests.get(f"{BASE_URL}/api/v1/tickets/escalated")
+        if response.status_code == 200:
+            data = response.json()
+            if data:
+                return pd.DataFrame(data)
+        return pd.DataFrame()
+    except Exception:
+        st.error("Error conectando con el servidor.")
+        return pd.DataFrame()
 
 df = load_escalated_cases()
 
@@ -29,7 +36,7 @@ if not df.empty:
         if respuesta.strip():
             try:
                 res = requests.post(
-                    f"[https://intelligent-chatbot-std8.onrender.com/api/v1/ticket/](https://intelligent-chatbot-std8.onrender.com/api/v1/ticket/){case_id}/resolve",
+                    f"{BASE_URL}/api/v1/ticket/{case_id}/resolve",
                     json={"manual_response": respuesta}
                 )
                 if res.status_code == 200:
