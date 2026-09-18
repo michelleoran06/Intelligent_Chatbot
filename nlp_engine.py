@@ -1,29 +1,9 @@
-import os
 from vector_store import collection
-import google.generativeai as genai
 
 class BotStrategy:
-    def _init_(self):
-        self.api_key = os.getenv("GEMINI_API_KEY")
-        if self.api_key:
-            genai.configure(api_key=self.api_key)
-            self.model = genai.GenerativeModel('gemini-1.5-flash')
-        else:
-            self.model = None
-
     def generate_response(self, query, context):
-        if self.model:
-            prompt = f"Eres el asistente de la cafetería de la Facultad de Ingeniería. Responde la duda basándote solo en este contexto:\n\n{context}\n\nPregunta: {query}"
-            try:
-                response = self.model.generate_content(prompt)
-                message = response.text
-            except Exception:
-                message = context
-        else:
-            message = context
-
         return {
-            "message": message,
+            "message": context,
             "routed_to": "bot",
             "status": "resolved"
         }
@@ -49,6 +29,7 @@ class NLPEngine:
             
             if results['distances'] and results['distances'][0]:
                 distance = results['distances'][0][0]
+                # Invertimos la distancia para que funcione como tu "confidence_score"
                 confidence = 1.0 / (1.0 + distance)
                 context = results['metadatas'][0][0]['respuesta']
                 return context, float(confidence)
