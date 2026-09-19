@@ -1,0 +1,47 @@
+======================================================
+     BATERÍA DE PRUEBAS - INTELLIGENT CHATBOT
+======================================================
+
+--- 1. PRUEBAS PARA EL BOT (ALTA CONFIANZA / RESPUESTA AUTOMÁTICA) ---
+Copia y pega estas preguntas en el chat individualmente. El bot debe responder de inmediato:
+
+- ¿cuántos días tengo para que me devuelvan mi dinero?
+- a qué hora abren los fines de semana
+- olvidé mi contraseña y me falla el inicio de sesión
+- ¿tienen envíos rápidos o cuánto tarda en llegar?
+- ¿aceptan tarjeta o se puede con transferencia?
+
+
+--- 2. PRUEBAS PARA OPERADOR (BAJA CONFIANZA / ESCALAMIENTO) ---
+Copia y pega estas frases en el chat individualmente. El sistema debe pausar el chat y mandar el ticket al Panel de Operador:
+
+- tuve un problema grave con un empleado de la sucursal y quiero poner una queja
+- ¿venden refacciones para arreglar la pantalla de una laptop?
+- necesito soporte técnico avanzado porque la API de pagos no me responde
+- jaskdhasjkdhasd
+
+
+--- 3. PRUEBAS DE EXCEPCIONES Y MANEJO DE ERRORES ---
+Cómo forzar los errores amigables y probar la robustez del sistema:
+
+A) Error 400 (Fail Fast - Entrada vacía)
+   - Acción: Ve al chat de Streamlit, presiona la barra espaciadora 5 veces y dale a enviar.
+   - Resultado esperado: El sistema bloquea el mensaje y lanza la advertencia de que la consulta está en blanco.
+
+B) Error 422 (Límite de caracteres excedido)
+   - Acción: Copia y pega un texto de más de 500 caracteres (ej. dos párrafos enteros de Wikipedia) en el chat y envíalo.
+   - Resultado esperado: El sistema rechaza la entrada por seguridad y lanza la advertencia de que el mensaje es muy largo.
+
+C) Error 404 (Ticket inexistente)
+   - Acción: Abre una terminal independiente y pega esto:
+     curl http://127.0.0.1:8000/api/v1/ticket/99999
+   - Resultado esperado: La API devuelve un error diciendo que no logró encontrar el ticket en el sistema.
+
+D) Error 422 (Petición malformada a la API)
+   - Acción: Abre una terminal independiente y pega esto (falta el user_id):
+     curl -X POST "http://127.0.0.1:8000/api/v1/chat" -H "Content-Type: application/json" -d "{\"query\": \"hola\"}"
+   - Resultado esperado: La API devuelve un error estructurado indicando que faltan campos obligatorios.
+
+E) Error 500 (Simulación de caída interna del servidor)
+   - Acción: Abre el archivo nlp_engine.py, cambia temporalmente la línea "distance = distances[0]" por "distance = distances[50]", guarda el archivo y manda un "hola" en el chat.
+   - Resultado esperado: El servidor detecta el fallo interno del código, registra el error exacto en la terminal y le devuelve al usuario un mensaje amigable pidiendo que intente más tarde (sin que el backend crashee). RECUERDA REGRESAR EL CÓDIGO A [0] DESPUÉS DE LA PRUEBA.
