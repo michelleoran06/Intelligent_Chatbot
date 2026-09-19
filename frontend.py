@@ -2,7 +2,7 @@ import streamlit as st
 import requests
 import time
 
-# Configuración inicial de la interfaz de usuario en Streamlit
+#//
 st.set_page_config(page_title="Soporte Cafetería", page_icon="☕", layout="centered")
 
 st.markdown("""
