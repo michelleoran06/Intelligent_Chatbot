@@ -6,7 +6,7 @@ class NLPEngine:
     def __init__(self, confidence_threshold: float = 0.65):
         self.confidence_threshold = confidence_threshold
         
-        
+        # Diccionario principal de intenciones y respuestas predefinidas
         self.intents = {
             "horarios": {
                 "keywords": ["hora", "horario", "abren", "cierran", "temprano", "tarde", "dias", "sabado"],
