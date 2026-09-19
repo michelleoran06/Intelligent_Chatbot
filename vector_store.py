@@ -50,4 +50,4 @@ def seed_knowledge_base():
     )
 
 if __name__ == "__main__":
-    seed_knowledge_base(
+    seed_knowledge_base()
