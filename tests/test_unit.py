@@ -129,6 +129,19 @@ def test_ut10_threshold_decision():
     assert selector.select(0.99, requested_human=True) is fallback
 
 
+# Frontera calibrada en la Fase 2 (umbral 0.75, divisor 2.0)
+def test_calibrated_score_boundary():
+    engine, _ = make_engine(divisor=2.0)
+    assert engine.score_from_distance(0.5) == pytest.approx(0.75)
+
+
+def test_calibrated_threshold_decision():
+    bot, fallback = BotResponseStrategy(), HumanFallbackStrategy(EscalationSubject())
+    selector = StrategySelector(bot, fallback, threshold=0.75)
+    assert selector.select(0.75) is bot
+    assert selector.select(0.7499) is fallback
+
+
 # Motor de IA
 def test_semantic_exact_question_is_answered():
     engine, _ = make_engine()
