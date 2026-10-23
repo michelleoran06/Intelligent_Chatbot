@@ -206,11 +206,79 @@ Ejecutado por Claude Code en Windows 11 con Python 3.12.0, torch 2.14.1 y senten
 
 ---
 
+## Decisión final de la Fase 2 (23-oct-2026)
+
+**Decisión:** se adopta la **configuración C**, aprobada por el equipo con base en la validación independiente.
+
+**Conjunto de validación:** `evaluation/validation_set.csv`, escrito por el equipo. Tiene 40 consultas, 26 de la cafetería y 14 fuera de alcance, y ninguna se repite en `test_set.csv`.
+- No se usó para ajustar nada.
+- Al archivo original le faltaba la línea de encabezado; en el repositorio solo se le agregó `query,expected,category`.
+
+**Evidencia:**
+- `experimento_calidad/validacion_final_consola.txt`
+- `validacion_final_A.json`
+- `validacion_final_C.json`
+
+| Métrica | A: línea base (0.70 / 2.5, sin rechazo) | C: adoptada (0.75 / 2.0, con rechazo) |
+|---|---|---|
+| TP / FP / FN / TN | 22 / 4 / 2 / 12 | 21 / 1 / 4 / 14 |
+| Exactitud | 0.850 | 0.875 |
+| Precisión | 0.846 | **0.955** |
+| Recall | 0.917 | 0.840 |
+| F1 | 0.880 | 0.894 |
+| Escalamiento | 0.350 | 0.450 |
+| Hit@1 / Hit@3 | 0.885 / 0.962 | 0.885 / 0.962 |
+
+**Lectura:** C supera el objetivo de precisión (≥ 0.90) y mejora la exactitud y el F1. A cambio, el recall baja 0.077.
+- **Ganancia:** deja de dar 3 respuestas incorrectas.
+- **Costo:** escala 2 preguntas que sí sabía responder: "¿Qué tienen para desayunar ahorita?" (S = 0.746) y "¿De qué especialidad es la pizza?" (S = 0.707). En ambas, la entrada correcta quedó en primer lugar.
+- **Limitación:** con 40 consultas, cada caso vale unos 2.5 puntos de exactitud, así que la diferencia es indicativa.
+
+**Valores adoptados:**
+
+| Parámetro | Antes | Ahora |
+|---|---|---|
+| `CONFIDENCE_THRESHOLD` | 0.70 | **0.75** |
+| `CONFIDENCE_DIVISOR` | 2.5 | **2.0** |
+| `USE_REJECTION_EXAMPLES` | false | **true** |
+| `EMBEDDING_MODEL` | default | default (sin cambio) |
+| `KEYWORD_CONFIDENCE` | 0.75 | 0.75 (sin cambio) |
+
+**Archivos:**
+- `config.py` (valores por defecto)
+- `docker-compose.yml`
+- `.env.example`
+- `Manual_del_Proyecto.md` (tabla de variables)
+- `CLAUDE.md` (decisiones fijas y arquitectura)
+
+**Pruebas nuevas** en `tests/test_unit.py`; no se borró ninguna prueba existente:
+- `test_calibrated_score_boundary`: con divisor 2.0, d = 0.5 da S = 0.75.
+- `test_calibrated_threshold_decision`: con umbral 0.75, `StrategySelector` manda 0.75 al bot y 0.7499 al operador.
+
+**Verificación** (`evaluation/results/pytest_config_final.txt`):
+- `ruff check .`: sin avisos.
+- Unitarias e integración: **58/58** pasaron.
+- `pytest -m chroma`: **1/1**.
+
+**Prueba de humo de la API** (`evaluation/results/api_smoke_config_final.txt`, 3/4):
+- El backend arrancó con los valores por defecto nuevos (sin variables de entorno) y con un `DATA_DIR` temporal, para no modificar `data/`.
+- El índice tiene 141 documentos, 40 de ellos de rechazo.
+- `/health` muestra `confidence_threshold: 0.75` y `rejection_examples: true`.
+- "¿A qué hora abren la cafetería?" se respondió (bot, S = 1.0).
+- **Hallazgo:** "¿Cuánto cuesta la colegiatura?" **no se escaló**. El bot respondió `antojitos` con S = 0.7881.
+  - **Causa:** no es un error del código. Es el falso positivo ya medido en el experimento: S = 0.831 con divisor 2.5 equivale a d ≈ 0.42, que con divisor 2.0 da S ≈ 0.79, por encima de 0.75.
+  - Aparece en el análisis de errores de `docs/fase2_resultados_e_interpretacion.md` (fuera de alcance con vocabulario compartido: "cuesta").
+  - Con los valores vigentes (0.70 / 2.5), fue FP en las cuatro configuraciones (A–D). Los ejemplos de rechazo no lo cubren, porque se redactaron sin copiar consultas del conjunto de prueba.
+  - **No se modificó nada para que pase.** Queda como limitación documentada para el reporte.
+
+---
+
 ## Pendiente
 
 - [x] Ejecutar el experimento en el equipo (Claude Code) y registrar aquí los resultados (23-oct-2026).
 - [ ] Subir el repositorio local (rama `correcciones-entrega3`) a GitHub.
-- [ ] El equipo escribe `evaluation/validation_set.csv` (~40 consultas) para la medición final.
-- [ ] Decidir la configuración de producción y, si cambia, actualizar `config.py`, el `Dockerfile` (precarga del modelo), los requisitos y el reporte.
+- [x] El equipo escribe `evaluation/validation_set.csv` (40 consultas) para la medición final.
+- [x] Decidir la configuración de producción: configuración C (23-oct-2026). Con el modelo `default` no hace falta cambiar el `Dockerfile` ni los requisitos.
+- [ ] Actualizar el reporte: 0.70 → 0.75 y 2.5 → 2.0 en RF05, la Sección 2.3, las Figuras 1 y 3, las Secciones 4.3, 8, 9 y 16 y la Tabla 33.
 - [ ] Fase 3: optimizaciones de desempeño (límite de embeddings simultáneos, precarga del modelo) y nueva prueba de carga por escalones.
 - [ ] Docker: instalar Docker Desktop o usar como evidencia el job `docker` de GitHub Actions.
