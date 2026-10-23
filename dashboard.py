@@ -13,11 +13,15 @@ import requests
 import streamlit as st
 import streamlit.components.v1 as components
 
-BASE_URL = os.getenv("BACKEND_URL", "http://127.0.0.1:8000").rstrip("/")
+# Por defecto usa el backend desplegado en Render. Para trabajar con un backend local:
+#   BACKEND_URL=http://127.0.0.1:8000  (Docker Compose ya lo define por su cuenta)
+DEFAULT_BACKEND_URL = "https://intelligent-chatbot-std8.onrender.com"
+BASE_URL = os.getenv("BACKEND_URL", DEFAULT_BACKEND_URL).rstrip("/")
 ADMIN_TOKEN = os.getenv("ADMIN_TOKEN", "")
 REFRESH_SECONDS = int(os.getenv("DASHBOARD_REFRESH_SECONDS", "10"))
 ALERT_SOUND_URL = "https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3"
-CONNECTION_ERROR = "No se pudo conectar con la API. Revisa que el backend esté en ejecución."
+CONNECTION_ERROR = ("No se pudo conectar con la API. Si el backend estaba dormido (plan gratuito de Render), "
+                    "espera un minuto y actualiza la página.")
 
 st.set_page_config(page_title="Panel de Operador y Admin", page_icon="🎧", layout="wide")
 
@@ -59,7 +63,7 @@ st.markdown(
 # ------------------------------------------------------------------ utilidades HTTP
 def api_get(path: str):
     try:
-        res = requests.get(f"{BASE_URL}{path}", timeout=10)
+        res = requests.get(f"{BASE_URL}{path}", timeout=60)
     except requests.exceptions.RequestException:
         return None, CONNECTION_ERROR
     if res.status_code != 200:
@@ -73,7 +77,7 @@ def api_get(path: str):
 def api_send(method: str, path: str, payload=None):
     headers = {"X-Admin-Token": ADMIN_TOKEN} if ADMIN_TOKEN else {}
     try:
-        return requests.request(method, f"{BASE_URL}{path}", json=payload, headers=headers, timeout=15), None
+        return requests.request(method, f"{BASE_URL}{path}", json=payload, headers=headers, timeout=60), None
     except requests.exceptions.RequestException:
         return None, CONNECTION_ERROR
 

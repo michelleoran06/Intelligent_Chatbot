@@ -10,7 +10,10 @@ import time
 import requests
 import streamlit as st
 
-BASE_URL = os.getenv("BACKEND_URL", "http://127.0.0.1:8000").rstrip("/")
+# Por defecto usa el backend desplegado en Render. Para trabajar con un backend local:
+#   BACKEND_URL=http://127.0.0.1:8000  (Docker Compose ya lo define por su cuenta)
+DEFAULT_BACKEND_URL = "https://intelligent-chatbot-std8.onrender.com"
+BASE_URL = os.getenv("BACKEND_URL", DEFAULT_BACKEND_URL).rstrip("/")
 MAX_MESSAGES = int(os.getenv("MAX_MESSAGES", "15"))
 MAX_QUERY_LENGTH = int(os.getenv("MAX_QUERY_LENGTH", "500"))
 POLL_INTERVAL_SECONDS = 1.5
@@ -72,7 +75,7 @@ def send_feedback(ticket_id: int, widget_key: str) -> None:
         return
     try:
         res = requests.post(f"{BASE_URL}/api/v1/ticket/{ticket_id}/feedback",
-                            json={"helpful": value == 1}, timeout=5)
+                            json={"helpful": value == 1}, timeout=30)
         if res.status_code == 200:
             st.toast("¡Gracias por calificar la respuesta!", icon="👍")
         else:
@@ -212,7 +215,7 @@ with st.sidebar:
                     res = requests.post(
                         f"{BASE_URL}/api/v1/reviews",
                         json={"user_type": user_type, "rating": rating_num, "comment": comment},
-                        timeout=5,
+                        timeout=30,
                     )
                     if res.status_code == 200:
                         st.session_state.review_submitted = True

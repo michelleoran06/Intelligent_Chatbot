@@ -63,14 +63,18 @@ streamlit run frontend.py
 streamlit run dashboard.py
 ```
 
-Por defecto, las interfaces se conectan a `http://127.0.0.1:8000`. Para usar el backend de Render **ya no hay que editar el código**: basta con definir la variable de entorno `BACKEND_URL`.
+Por defecto, las interfaces se conectan al backend desplegado en Render: `https://intelligent-chatbot-std8.onrender.com`. Para trabajar con el backend local de la Terminal 1, define la variable de entorno `BACKEND_URL` antes de abrir las interfaces; **no hay que editar el código**.
 
 ```bash
 # Windows (cmd)
-set BACKEND_URL=https://intelligent-chatbot-std8.onrender.com
+set BACKEND_URL=http://127.0.0.1:8000
+# Windows (PowerShell)
+$env:BACKEND_URL = "http://127.0.0.1:8000"
 # Mac/Linux
-export BACKEND_URL=https://intelligent-chatbot-std8.onrender.com
+export BACKEND_URL=http://127.0.0.1:8000
 ```
+
+En el plan gratuito, Render "duerme" el backend cuando no se usa. La primera petición puede tardar alrededor de un minuto; por eso las interfaces esperan hasta 30 s (chat) o 60 s (panel) antes de mostrar un error. Docker Compose ya define `BACKEND_URL` por su cuenta.
 
 ### 5. Ejecución con Docker
 
@@ -96,7 +100,7 @@ Los datos se guardan en el volumen `chatbot_data`, así que sobreviven al reempl
 | `MAX_QUERY_LENGTH` | 500 | Máximo de caracteres por pregunta |
 | `DATA_DIR` | ./data | Carpeta de SQLite y ChromaDB |
 | `ADMIN_TOKEN` | (vacío) | Si se define, exige el token para modificar la base de conocimiento |
-| `BACKEND_URL` | http://127.0.0.1:8000 | Dirección del backend (solo en las interfaces) |
+| `BACKEND_URL` | https://intelligent-chatbot-std8.onrender.com | Dirección del backend (solo en las interfaces); en local, `http://127.0.0.1:8000` |
 | `MAX_MESSAGES` | 15 | Límite de mensajes por sesión de chat |
 | `EMBEDDING_MODEL` | default | `default` = all-MiniLM-L6-v2; otro valor = modelo de sentence-transformers |
 | `USE_REJECTION_EXAMPLES` | true | Indexa ejemplos de preguntas de otros temas para escalarlas |
