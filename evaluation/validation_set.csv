@@ -1,0 +1,41 @@
+query,expected,category
+¿A qué hora abren la cafe en la mañana?,horarios,paraphrase
+Oigan hasta qué hora dejan de dar servicio hoy?,horarios,paraphrase
+¿Se puede pagar con tarjeta o puro efectivo?,pagos,paraphrase
+No traigo cash ¿tienen terminal o aceptan transferencia?,pagos,paraphrase
+¿En dónde está la cafetería exactamente?,ubicacion,paraphrase
+¿Cómo llego a la cafe desde el edificio principal?,ubicacion,paraphrase
+¿Qué tienen para desayunar ahorita?,desayunos,paraphrase
+¿Venden huevos al gusto o algo así en la mañana?,desayunos,paraphrase
+Tengo antojo de algo rápido ¿tienen quesadillas o molletes?,antojitos,paraphrase
+¿A cuánto están los tacos dorados y las gringas?,antojitos,paraphrase
+¿Venden chilaquiles con milanesa o pollo?,chilaquiles,paraphrase
+¿Qué tipos de chilaquiles preparan y cuánto cuestan?,chilaquiles,paraphrase
+¿Tienen sándwiches de pierna o hamburguesas?,sandwiches,paraphrase
+¿De qué son los sándwiches que venden?,sandwiches,paraphrase
+¿Qué traen los paquetes de comida completos?,paquetes,paraphrase
+¿Venden paquetes con pechuga asada o arrachera?,paquetes,paraphrase
+¿Venden rebanadas de pizza o solo enteras?,pizzas,paraphrase
+¿De qué especialidad es la pizza que venden hoy?,pizzas,paraphrase
+¿Saben si hoy venden tacos de carnitas?,carnitas,paraphrase
+¿De pura casualidad tendrán tortas de carnitas?,carnitas,paraphrase
+¿Qué hay para tomar? ¿Tienen jugos naturales?,bebidas,paraphrase
+¿Venden aguas de sabor o puros licuados?,bebidas,paraphrase
+¿Tienen galletas o algo dulce de postre?,postres,paraphrase
+¿Venden obleas enjambres o algún dulce?,postres,paraphrase
+¿Cuál es el menú del día de hoy y qué incluye?,menu_del_dia,paraphrase
+Pásenme el menú ¿qué venden de comer en general?,menu_general,paraphrase
+¿Saben cuándo son las inscripciones para el próximo semestre?,ESCALATE,out_of_scope
+¿Dónde está la biblioteca central?,ESCALATE,out_of_scope
+¿Alguien sabe si el profe de cálculo vino hoy?,ESCALATE,out_of_scope
+¿Cómo puedo sacar una constancia de estudios con promedio?,ESCALATE,out_of_scope
+¿En qué salón me toca la clase de Ingeniería de Software?,ESCALATE,out_of_scope
+¿Saben si ya depositaron la beca Benito Juárez?,ESCALATE,out_of_scope
+Perdí mi credencial ¿dónde la puedo reponer?,ESCALATE,out_of_scope
+¿Qué camión o ruta del potrobus me deja en la facultad?,ESCALATE,out_of_scope
+¿Alguien tiene el temario del segundo parcial?,ESCALATE,out_of_scope
+¿Cómo me conecto al WiFi de la escuela cuál es la contraseña?,ESCALATE,out_of_scope
+¿Saben a qué hora cierra el centro de cómputo?,ESCALATE,out_of_scope
+¿Dónde puedo comprar una bata para entrar al laboratorio?,ESCALATE,out_of_scope
+¿Saben si hay paro de labores mañana?,ESCALATE,out_of_scope
+¿Hasta qué día tengo para dar de baja una materia?,ESCALATE,out_of_scope
