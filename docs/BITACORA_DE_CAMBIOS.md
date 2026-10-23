@@ -273,6 +273,31 @@ Ejecutado por Claude Code en Windows 11 con Python 3.12.0, torch 2.14.1 y senten
 
 ---
 
+## Interfaces conectadas por defecto al backend de Render (23-oct-2026)
+
+**Origen:** se reemplazaron `frontend.py` y `dashboard.py` con las versiones de la carpeta `urls_render`. El equipo revisó y aprobó las diferencias antes del reemplazo.
+
+| Cambio | Antes | Ahora | Motivo | Criterio | Archivo |
+|---|---|---|---|---|---|
+| Dirección por defecto del backend | `http://127.0.0.1:8000` | `https://intelligent-chatbot-std8.onrender.com` (constante `DEFAULT_BACKEND_URL`) | Las interfaces publicadas deben usar el backend desplegado sin configuración extra. Sigue pudiéndose cambiar con `BACKEND_URL` | C5, C7 | `frontend.py`, `dashboard.py` |
+| Tiempo de espera de 👍/👎 (RF09) y de las reseñas | 5 s | 30 s | En el plan gratuito, Render "duerme" el backend y la primera petición tarda | C6 | `frontend.py` |
+| Tiempo de espera del panel | 10 s (GET) y 15 s (envíos) | 60 s | El mismo motivo | C6 | `dashboard.py` |
+| Aviso de conexión del panel del operador | "…Revisa que el backend esté en ejecución." | "…Si el backend estaba dormido (plan gratuito de Render), espera un minuto y actualiza la página." | Orienta al operador ante el arranque en frío | C7 | `dashboard.py` |
+
+**Documentación:** en `Manual_del_Proyecto.md`, la sección 4 ("Ejecución local") ahora explica que las interfaces usan Render por defecto y que, para el backend local, se define `BACKEND_URL=http://127.0.0.1:8000`. También se actualizó la fila de `BACKEND_URL` en la tabla de variables (sección 6).
+
+**Sin cambio:**
+- `docker-compose.yml` sigue definiendo `BACKEND_URL=http://backend:8000`.
+- `.env.example` conserva `BACKEND_URL=http://127.0.0.1:8000`, para trabajar en local.
+
+**Verificación** (`evaluation/results/pytest_urls_render.txt`):
+- `ruff check .`: sin avisos.
+- Unitarias e integración: **58/58** pasaron.
+
+**Para el reporte:** si el aviso de conexión del panel aparece en la Tabla 5, hay que actualizar su texto.
+
+---
+
 ## Pendiente
 
 - [x] Ejecutar el experimento en el equipo (Claude Code) y registrar aquí los resultados (23-oct-2026).
