@@ -1,0 +1,121 @@
+query,category,expected,predicted,method,confidence,distance,decision,outcome
+¿A qué hora abren la cafetería?,direct,horarios,horarios,semantic,1.0,0.0,answer,TP
+¿Cuál es el horario de la cafetería?,direct,horarios,horarios,semantic,1.0,0.0,answer,TP
+¿A qué hora cierran?,direct,horarios,horarios,semantic,0.8109,0.4727,answer,TP
+¿Abren los sábados?,direct,horarios,horarios,semantic,1.0,0.0,answer,TP
+¿Qué días abren?,direct,horarios,horarios,semantic,1.0,0.0,answer,TP
+¿Cuáles son los métodos de pago?,direct,pagos,pagos,semantic,1.0,0.0,answer,TP
+¿Aceptan tarjeta?,direct,pagos,pagos,semantic,1.0,0.0,answer,TP
+¿Puedo pagar con transferencia?,direct,pagos,pagos,semantic,1.0,0.0,answer,TP
+¿Dónde está la cafetería?,direct,ubicacion,ubicacion,semantic,1.0,0.0,answer,TP
+¿En qué edificio está la cafetería?,direct,ubicacion,ubicacion,semantic,1.0,0.0,answer,TP
+¿Qué desayunos tienen?,direct,desayunos,desayunos,semantic,1.0,0.0,answer,TP
+¿Tienen omelette?,direct,desayunos,desayunos,semantic,1.0,0.0,answer,TP
+¿Venden huevos?,direct,desayunos,desayunos,semantic,1.0,0.0,answer,TP
+¿Qué antojitos tienen?,direct,antojitos,antojitos,semantic,1.0,0.0,answer,TP
+¿Venden quesadillas?,direct,antojitos,antojitos,semantic,1.0,0.0,answer,TP
+¿Tienen tacos dorados?,direct,antojitos,antojitos,semantic,1.0,0.0,answer,TP
+¿Qué chilaquiles tienen?,direct,chilaquiles,chilaquiles,semantic,1.0,0.0,answer,TP
+¿Cuánto cuestan los chilaquiles con cecina?,direct,chilaquiles,chilaquiles,semantic,1.0,0.0,answer,TP
+¿Venden sándwiches?,direct,sandwiches,sandwiches,semantic,1.0,0.0,answer,TP
+¿Tienen hamburguesas?,direct,sandwiches,sandwiches,semantic,1.0,0.0,answer,TP
+¿Qué paquetes de comida tienen?,direct,paquetes,paquetes,semantic,1.0,0.0,answer,TP
+¿Cuánto cuesta el paquete de arrachera?,direct,paquetes,paquetes,semantic,1.0,0.0,answer,TP
+¿Venden pizza?,direct,pizzas,pizzas,semantic,1.0,0.0,answer,TP
+¿Qué sabores de pizza tienen?,direct,pizzas,pizzas,semantic,1.0,0.0,answer,TP
+¿Qué bebidas tienen?,direct,bebidas,bebidas,semantic,1.0,0.0,answer,TP
+¿Venden agua?,direct,bebidas,bebidas,semantic,1.0,0.0,answer,TP
+¿Tienen postres?,direct,postres,postres,semantic,1.0,0.0,answer,TP
+¿Tienen galletas?,direct,postres,postres,semantic,1.0,0.0,answer,TP
+¿Qué trae el menú del día?,direct,menu_del_dia,menu_del_dia,semantic,1.0,0.0,answer,TP
+¿Cuánto cuesta la comida corrida?,direct,menu_del_dia,menu_del_dia,semantic,1.0,0.0,answer,TP
+¿Desde qué hora puedo ir a comprar algo?,paraphrase,horarios,horarios,semantic,0.8129,0.4677,answer,TP
+¿Hasta qué hora atienden?,paraphrase,horarios,horarios,semantic,0.8074,0.4814,answer,TP
+¿El domingo está abierto?,paraphrase,horarios,horarios,semantic,0.8506,0.3735,answer,TP
+¿A partir de qué hora sirven el desayuno?,paraphrase,horarios,horarios,semantic,0.7422,0.6445,answer,TP
+¿Se puede pagar con tarjeta de crédito?,paraphrase,pagos,pagos,semantic,0.7385,0.6537,answer,TP
+¿Reciben pagos por transferencia desde el celular?,paraphrase,pagos,pagos,keyword,0.75,0.8688,answer,TP
+¿Cobran solo en efectivo?,paraphrase,pagos,pagos,semantic,0.7589,0.6027,answer,TP
+¿Cómo llego a la cafetería de la facultad?,paraphrase,ubicacion,ubicacion,semantic,0.9331,0.1672,answer,TP
+¿En qué piso queda la cafetería?,paraphrase,ubicacion,ubicacion,semantic,0.961,0.0976,answer,TP
+¿Qué puedo desayunar en la mañana?,paraphrase,desayunos,horarios,semantic,0.8219,0.4454,answer,FP
+¿Hay huevos rancheros o divorciados?,paraphrase,desayunos,desayunos,semantic,0.9316,0.1709,answer,TP
+¿Cuánto sale un desayuno?,paraphrase,desayunos,desayunos,semantic,0.8297,0.4258,answer,TP
+¿Tienen molletes o tostadas?,paraphrase,antojitos,desayunos,semantic,0.7691,0.5773,answer,FP
+¿Cuánto vale la gringa?,paraphrase,antojitos,antojitos,semantic,0.9179,0.2053,answer,TP
+¿Hay burritos grandes?,paraphrase,antojitos,antojitos,semantic,0.7324,0.6691,answer,TP
+¿Los chilaquiles pueden llevar pollo?,paraphrase,chilaquiles,chilaquiles,semantic,0.8217,0.4458,answer,TP
+¿Cuánto salen unos chilaquiles sencillos?,paraphrase,chilaquiles,chilaquiles,semantic,0.8766,0.3086,answer,TP
+¿Me pueden hacer un sándwich club?,paraphrase,sandwiches,sandwiches,semantic,0.7124,0.7191,answer,TP
+¿Cuánto cuesta el sándwich de pierna?,paraphrase,sandwiches,sandwiches,semantic,0.8969,0.2578,answer,TP
+¿Tienen comida completa con carne?,paraphrase,paquetes,paquetes,semantic,0.9362,0.1594,answer,TP
+¿Hay pescado empanizado?,paraphrase,paquetes,paquetes,semantic,0.7361,0.6598,answer,TP
+¿Cuánto cuesta la pechuga rellena?,paraphrase,paquetes,paquetes,semantic,1.0,0.0,answer,TP
+¿A cómo está la rebanada de pizza?,paraphrase,pizzas,pizzas,semantic,0.863,0.3425,answer,TP
+¿Puedo comprar la pizza entera?,paraphrase,pizzas,pizzas,semantic,0.7747,0.5633,answer,TP
+¿Hay jugos naturales?,paraphrase,bebidas,bebidas,semantic,0.7627,0.5932,answer,TP
+¿Venden licuados?,paraphrase,bebidas,bebidas,semantic,0.7283,0.6791,answer,TP
+¿Hay algo dulce de postre?,paraphrase,postres,postres,semantic,0.8219,0.4452,answer,TP
+¿Cuánto cuestan las obleas?,paraphrase,postres,postres,semantic,1.0,0.0,answer,TP
+¿Qué hay de comer hoy?,paraphrase,menu_del_dia,menu_del_dia,semantic,1.0,0.0,answer,TP
+¿Qué incluye la comida del día?,paraphrase,menu_del_dia,menu_del_dia,semantic,1.0,0.0,answer,TP
+aq hora abren,informal,horarios,horarios,keyword,0.75,0.8452,answer,TP
+orario de la cafe,informal,horarios,ubicacion,semantic,0.7331,0.6673,answer,FP
+abren el sabadoo,informal,horarios,horarios,semantic,0.8706,0.3236,answer,TP
+aceptan tarjeta d debito?,informal,pagos,pagos,semantic,0.8151,0.4621,answer,TP
+se puede pagar con trasferencia,informal,pagos,pagos,semantic,0.7924,0.519,answer,TP
+dnd esta la cafeteria,informal,ubicacion,ubicacion,semantic,0.8712,0.3219,answer,TP
+q desayunos ay,informal,desayunos,desayunos,semantic,0.7152,0.712,answer,TP
+tienen omelet,informal,desayunos,desayunos,semantic,0.9547,0.1133,answer,TP
+kesadillas cuanto,informal,antojitos,sandwiches,semantic,0.7345,0.6637,answer,FP
+tacos dorado cuanto cuestan,informal,antojitos,antojitos,semantic,0.8533,0.3667,answer,TP
+chilakiles con cesina,informal,chilaquiles,chilaquiles,semantic,0.5599,1.1003,escalate,FN
+chilaquiles sencillo precio,informal,chilaquiles,chilaquiles,semantic,0.8353,0.4116,answer,TP
+hay hamburgesas,informal,sandwiches,sandwiches,semantic,0.7476,0.631,answer,TP
+sandwich de pierna cuanto,informal,sandwiches,sandwiches,semantic,0.842,0.3949,answer,TP
+paquete arrachera precio,informal,paquetes,paquetes,semantic,0.7655,0.5862,answer,TP
+pizza hawaiana cuanto,informal,pizzas,pizzas,semantic,0.8297,0.4257,answer,TP
+hay agua de sabor,informal,bebidas,bebidas,semantic,0.6927,0.7683,escalate,FN
+galletas de avena precio,informal,postres,postres,semantic,0.7628,0.5929,answer,TP
+menu del dia q trae,informal,menu_del_dia,menu_del_dia,semantic,0.8736,0.3161,answer,TP
+menu del dia para llevar cuanto,informal,menu_del_dia,menu_del_dia,semantic,0.9415,0.1462,answer,TP
+¿Cómo califico a un maestro?,out_of_scope,ESCALATE,sandwiches,semantic,0.6205,0.9487,escalate,TN
+¿Cuándo son los exámenes finales?,out_of_scope,ESCALATE,pagos,semantic,0.7149,0.7127,answer,FP
+¿Dónde tramito mi credencial?,out_of_scope,ESCALATE,menu_del_dia,semantic,0.6758,0.8105,escalate,TN
+¿Cuál es la capital de Francia?,out_of_scope,ESCALATE,horarios,semantic,0.692,0.7701,escalate,TN
+¿Dónde está la biblioteca?,out_of_scope,ESCALATE,ubicacion,semantic,0.6578,0.8555,escalate,TN
+¿A qué hora abre la biblioteca?,out_of_scope,ESCALATE,horarios,keyword,0.75,0.9662,answer,FP
+¿Cómo solicito una beca para posgrado?,out_of_scope,ESCALATE,pagos,semantic,0.667,0.8325,escalate,TN
+Tuve un problema con un empleado y quiero poner una queja,out_of_scope,ESCALATE,menu_del_dia,semantic,0.6673,0.8319,escalate,TN
+¿Venden refacciones para arreglar la pantalla de una laptop?,out_of_scope,ESCALATE,menu_general,semantic,0.542,1.1451,escalate,TN
+La API de pagos no me responde,out_of_scope,ESCALATE,pagos,semantic,0.6622,0.8445,escalate,TN
+¿Aceptan tarjeta en la papelería?,out_of_scope,ESCALATE,pagos,semantic,0.8604,0.3491,answer,FP
+¿Cuánto cuesta la colegiatura?,out_of_scope,ESCALATE,antojitos,semantic,0.8305,0.4237,answer,FP
+¿En qué edificio está la dirección de la facultad?,out_of_scope,ESCALATE,ubicacion,semantic,0.7107,0.7234,answer,FP
+Me cobraron de más y quiero un reembolso,out_of_scope,ESCALATE,pizzas,semantic,0.666,0.8351,escalate,TN
+Perdí mi cartera en la cafetería,out_of_scope,ESCALATE,ubicacion,semantic,0.8016,0.496,answer,FP
+¿Puedo reservar mesas para un evento?,out_of_scope,ESCALATE,horarios,semantic,0.6473,0.8818,escalate,TN
+¿Hacen pedidos a domicilio?,out_of_scope,ESCALATE,paquetes,semantic,0.6002,0.9996,escalate,TN
+¿Tienen opciones veganas o sin gluten?,out_of_scope,ESCALATE,antojitos,semantic,0.6781,0.8047,escalate,TN
+¿Cuál es la contraseña del wifi de la facultad?,out_of_scope,ESCALATE,pagos,semantic,0.6003,0.9991,escalate,TN
+¿Dónde imprimo mis tareas?,out_of_scope,ESCALATE,pagos,semantic,0.6099,0.9753,escalate,TN
+¿Cuándo inicia el semestre?,out_of_scope,ESCALATE,pagos,semantic,0.6591,0.8522,escalate,TN
+¿Quién es el director de la facultad?,out_of_scope,ESCALATE,horarios,semantic,0.616,0.9601,escalate,TN
+¿Hay estacionamiento para alumnos?,out_of_scope,ESCALATE,menu_general,semantic,0.6922,0.7695,escalate,TN
+¿Contratan estudiantes para trabajar?,out_of_scope,ESCALATE,postres,semantic,0.6188,0.9531,escalate,TN
+¿Cuánto cuesta el examen de inglés?,out_of_scope,ESCALATE,paquetes,semantic,0.7902,0.5245,answer,FP
+¿Venden cigarros?,out_of_scope,ESCALATE,antojitos,semantic,0.7636,0.591,answer,FP
+¿Venden café de grano para llevar a casa?,out_of_scope,ESCALATE,menu_general,semantic,0.7458,0.6355,answer,FP
+"La comida me cayó mal, ¿a quién le reporto?",out_of_scope,ESCALATE,menu_del_dia,semantic,0.7132,0.717,answer,FP
+¿Cuántas calorías tiene la pizza?,out_of_scope,ESCALATE,pizzas,semantic,0.7668,0.583,answer,FP
+¿Puedo pagar la inscripción con tarjeta?,out_of_scope,ESCALATE,pagos,semantic,0.8016,0.496,answer,FP
+precios,ambiguous,menu_general,paquetes,semantic,0.5246,1.1886,escalate,FN
+comida,ambiguous,menu_general,paquetes,semantic,0.7168,0.708,answer,FP
+pizza,ambiguous,pizzas,pizzas,semantic,0.6687,0.8282,escalate,FN
+horario y formas de pago,ambiguous,horarios,pagos,semantic,0.7884,0.529,answer,FP
+¿cuánto cuesta?,ambiguous,ESCALATE,antojitos,semantic,0.8604,0.3491,answer,FP
+¿qué tienen?,ambiguous,menu_general,menu_general,semantic,0.8985,0.2537,answer,TP
+"desayuno y comida, ¿qué hay?",ambiguous,menu_general,desayunos,semantic,0.7999,0.5002,answer,FP
+¿Abren temprano y aceptan tarjeta?,ambiguous,horarios,pagos,semantic,0.8209,0.4477,answer,FP
+¿Tienen algo barato?,ambiguous,ESCALATE,sandwiches,semantic,0.7576,0.6061,answer,FP
+¿Qué me recomiendas?,ambiguous,ESCALATE,menu_del_dia,semantic,0.6383,0.9044,escalate,TN

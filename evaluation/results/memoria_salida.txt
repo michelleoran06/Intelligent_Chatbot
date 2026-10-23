@@ -1,0 +1,19 @@
+Iniciando backend (carga del modelo e índice)...
+     0 consultas | RSS 162.7 MB | Python actual 0.00 MB | pico 0.00 MB
+    50 consultas | RSS 175.0 MB | Python actual 0.16 MB | pico 1.24 MB
+   100 consultas | RSS 197.8 MB | Python actual 0.22 MB | pico 1.30 MB
+   500 consultas | RSS 197.7 MB | Python actual 0.30 MB | pico 1.32 MB
+
+Asignaciones de Python más grandes (top 5):
+  32.9 KB  C:\Users\miche\Downloads\intelligent_chatbot_corregido\intelligent_chatbot\.venv\Lib\site-packages\chromadb\api\rust.py:601
+  28.7 KB  C:\Users\miche\AppData\Local\Programs\Python\Python312\Lib\linecache.py:137
+  18.0 KB  C:\Users\miche\AppData\Local\Programs\Python\Python312\Lib\weakref.py:582
+  15.9 KB  C:\Users\miche\AppData\Local\Programs\Python\Python312\Lib\re\__init__.py:224
+  15.9 KB  C:\Users\miche\Downloads\intelligent_chatbot_corregido\intelligent_chatbot\nlp_engine.py:179
+
+Tamaño del historial de chat en la sesión:
+   10 mensajes: 1.9 KB
+   25 mensajes: 4.5 KB
+   50 mensajes: 9.2 KB
+
+Gráfica guardada en evaluation\results\memory_profile.png

@@ -1,0 +1,121 @@
+query,expected,category
+¿A qué hora abren la cafetería?,horarios,direct
+¿Cuál es el horario de la cafetería?,horarios,direct
+¿A qué hora cierran?,horarios,direct
+¿Abren los sábados?,horarios,direct
+¿Qué días abren?,horarios,direct
+¿Cuáles son los métodos de pago?,pagos,direct
+¿Aceptan tarjeta?,pagos,direct
+¿Puedo pagar con transferencia?,pagos,direct
+¿Dónde está la cafetería?,ubicacion,direct
+¿En qué edificio está la cafetería?,ubicacion,direct
+¿Qué desayunos tienen?,desayunos,direct
+¿Tienen omelette?,desayunos,direct
+¿Venden huevos?,desayunos,direct
+¿Qué antojitos tienen?,antojitos,direct
+¿Venden quesadillas?,antojitos,direct
+¿Tienen tacos dorados?,antojitos,direct
+¿Qué chilaquiles tienen?,chilaquiles,direct
+¿Cuánto cuestan los chilaquiles con cecina?,chilaquiles,direct
+¿Venden sándwiches?,sandwiches,direct
+¿Venden carnitas?,carnitas,direct
+¿Qué paquetes de comida tienen?,paquetes,direct
+¿Cuánto cuesta el paquete de arrachera?,paquetes,direct
+¿Venden pizza?,pizzas,direct
+¿Qué sabores de pizza tienen?,pizzas,direct
+¿Qué bebidas tienen?,bebidas,direct
+¿Venden agua?,bebidas,direct
+¿Tienen postres?,postres,direct
+¿Tienen galletas?,postres,direct
+¿Qué trae el menú del día?,menu_del_dia,direct
+¿Cuánto cuesta la comida corrida?,menu_del_dia,direct
+¿Desde qué hora puedo ir a comprar algo?,horarios,paraphrase
+¿Hasta qué hora atienden?,horarios,paraphrase
+¿El domingo está abierto?,horarios,paraphrase
+¿A partir de qué hora sirven el desayuno?,horarios,paraphrase
+¿Se puede pagar con tarjeta de crédito?,pagos,paraphrase
+¿Reciben pagos por transferencia desde el celular?,pagos,paraphrase
+¿Cobran solo en efectivo?,pagos,paraphrase
+¿Cómo llego a la cafetería de la facultad?,ubicacion,paraphrase
+¿En qué piso queda la cafetería?,ubicacion,paraphrase
+¿Qué puedo desayunar en la mañana?,desayunos,paraphrase
+¿Hay huevos rancheros o divorciados?,desayunos,paraphrase
+¿Cuánto sale un desayuno?,desayunos,paraphrase
+¿Tienen molletes o tostadas?,antojitos,paraphrase
+¿Cuánto vale la gringa?,antojitos,paraphrase
+¿Hay burritos grandes?,antojitos,paraphrase
+¿Los chilaquiles pueden llevar pollo?,chilaquiles,paraphrase
+¿Cuánto salen unos chilaquiles sencillos?,chilaquiles,paraphrase
+¿Me pueden hacer un sándwich club?,sandwiches,paraphrase
+¿Cuánto cuesta el sándwich de pierna?,sandwiches,paraphrase
+¿Tienen comida completa con carne?,paquetes,paraphrase
+¿Hay pescado empanizado?,paquetes,paraphrase
+¿Cuánto cuesta la pechuga rellena?,paquetes,paraphrase
+¿A cómo está la rebanada de pizza?,pizzas,paraphrase
+¿Puedo comprar la pizza entera?,pizzas,paraphrase
+¿Hay jugos naturales?,bebidas,paraphrase
+¿Los viernes hay tacos de carnitas?,carnitas,paraphrase
+¿Hay algo dulce de postre?,postres,paraphrase
+¿Cuánto cuestan las obleas?,postres,paraphrase
+¿Qué hay de comer hoy?,menu_del_dia,paraphrase
+¿Qué incluye la comida del día?,menu_del_dia,paraphrase
+aq hora abren,horarios,informal
+orario de la cafe,horarios,informal
+abren el sabadoo,horarios,informal
+aceptan tarjeta d debito?,pagos,informal
+se puede pagar con trasferencia,pagos,informal
+dnd esta la cafeteria,ubicacion,informal
+q desayunos ay,desayunos,informal
+tienen omelet,desayunos,informal
+kesadillas cuanto,antojitos,informal
+tacos dorado cuanto cuestan,antojitos,informal
+chilakiles con cesina,chilaquiles,informal
+chilaquiles sencillo precio,chilaquiles,informal
+tacos de karnitas cuanto,carnitas,informal
+sandwich de pierna cuanto,sandwiches,informal
+paquete arrachera precio,paquetes,informal
+pizza hawaiana cuanto,pizzas,informal
+hay agua de sabor,bebidas,informal
+galletas de avena precio,postres,informal
+menu del dia q trae,menu_del_dia,informal
+menu del dia para llevar cuanto,menu_del_dia,informal
+¿Cómo califico a un maestro?,ESCALATE,out_of_scope
+¿Cuándo son los exámenes finales?,ESCALATE,out_of_scope
+¿Dónde tramito mi credencial?,ESCALATE,out_of_scope
+¿Cuál es la capital de Francia?,ESCALATE,out_of_scope
+¿Dónde está la biblioteca?,ESCALATE,out_of_scope
+¿A qué hora abre la biblioteca?,ESCALATE,out_of_scope
+¿Cómo solicito una beca para posgrado?,ESCALATE,out_of_scope
+Tuve un problema con un empleado y quiero poner una queja,ESCALATE,out_of_scope
+¿Venden refacciones para arreglar la pantalla de una laptop?,ESCALATE,out_of_scope
+La API de pagos no me responde,ESCALATE,out_of_scope
+¿Aceptan tarjeta en la papelería?,ESCALATE,out_of_scope
+¿Cuánto cuesta la colegiatura?,ESCALATE,out_of_scope
+¿En qué edificio está la dirección de la facultad?,ESCALATE,out_of_scope
+Me cobraron de más y quiero un reembolso,ESCALATE,out_of_scope
+Perdí mi cartera en la cafetería,ESCALATE,out_of_scope
+¿Puedo reservar mesas para un evento?,ESCALATE,out_of_scope
+¿Hacen pedidos a domicilio?,ESCALATE,out_of_scope
+¿Tienen opciones veganas o sin gluten?,ESCALATE,out_of_scope
+¿Cuál es la contraseña del wifi de la facultad?,ESCALATE,out_of_scope
+¿Dónde imprimo mis tareas?,ESCALATE,out_of_scope
+¿Cuándo inicia el semestre?,ESCALATE,out_of_scope
+¿Quién es el director de la facultad?,ESCALATE,out_of_scope
+¿Hay estacionamiento para alumnos?,ESCALATE,out_of_scope
+¿Contratan estudiantes para trabajar?,ESCALATE,out_of_scope
+¿Cuánto cuesta el examen de inglés?,ESCALATE,out_of_scope
+¿Venden cigarros?,ESCALATE,out_of_scope
+¿Venden café de grano para llevar a casa?,ESCALATE,out_of_scope
+"La comida me cayó mal, ¿a quién le reporto?",ESCALATE,out_of_scope
+¿Cuántas calorías tiene la pizza?,ESCALATE,out_of_scope
+¿Puedo pagar la inscripción con tarjeta?,ESCALATE,out_of_scope
+precios,menu_general,ambiguous
+comida,menu_general,ambiguous
+pizza,pizzas,ambiguous
+horario y formas de pago,horarios,ambiguous
+¿cuánto cuesta?,ESCALATE,ambiguous
+¿qué tienen?,menu_general,ambiguous
+"desayuno y comida, ¿qué hay?",menu_general,ambiguous
+¿Abren temprano y aceptan tarjeta?,horarios,ambiguous
+¿Tienen algo barato?,ESCALATE,ambiguous
+¿Qué me recomiendas?,ESCALATE,ambiguous

@@ -1,0 +1,8 @@
+INFO:     Started server process [32504]
+INFO:     Waiting for application startup.
+2026-10-21 22:48:35,683 [INFO] ChatbotAPI: Base de conocimiento inicial cargada: 13 entradas.
+2026-10-21 22:48:39,020 [INFO] VectorStore: Índice vectorial reconstruido: 95 documentos.
+2026-10-21 22:48:39,023 [INFO] ChatbotAPI: Backend listo: 13 entradas en la base de conocimiento.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+2026-10-21 22:48:44,301 [INFO] Patterns: Caso escalado para operadores (Confianza baja (RF05)) | usuario=smoke | S=0.6920

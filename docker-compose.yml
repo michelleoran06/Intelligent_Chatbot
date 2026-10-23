@@ -1,0 +1,55 @@
+# Uso:  docker compose up --build
+#   Backend (API y docs): http://localhost:8000/docs
+#   Chat del usuario:     http://localhost:8501
+#   Panel del operador:   http://localhost:8502
+x-app: &app
+  build: .
+  restart: unless-stopped
+
+services:
+  backend:
+    <<: *app
+    command: uvicorn main:app --host 0.0.0.0 --port 8000
+    ports:
+      - "8000:8000"
+    environment:
+      DATA_DIR: /app/data
+      CONFIDENCE_THRESHOLD: "0.70"
+      CONFIDENCE_DIVISOR: "2.5"
+      MAX_QUERY_LENGTH: "500"
+      ADMIN_TOKEN: ${ADMIN_TOKEN:-}
+    volumes:
+      - chatbot_data:/app/data   # SQLite y ChromaDB sobreviven al reemplazo del contenedor
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=5)"]
+      interval: 10s
+      timeout: 6s
+      retries: 12
+      start_period: 60s
+
+  frontend:
+    <<: *app
+    command: streamlit run frontend.py --server.port 8501 --server.address 0.0.0.0 --server.headless true
+    ports:
+      - "8501:8501"
+    environment:
+      BACKEND_URL: http://backend:8000
+      MAX_MESSAGES: "15"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  dashboard:
+    <<: *app
+    command: streamlit run dashboard.py --server.port 8502 --server.address 0.0.0.0 --server.headless true
+    ports:
+      - "8502:8502"
+    environment:
+      BACKEND_URL: http://backend:8000
+      ADMIN_TOKEN: ${ADMIN_TOKEN:-}
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  chatbot_data:

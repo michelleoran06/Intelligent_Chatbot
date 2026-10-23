@@ -1,0 +1,17 @@
+# Secretos: nunca subir .env al repositorio
+.env
+
+# Datos locales
+data/
+chroma_data/
+*.db
+*.db-wal
+*.db-shm
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+venv/
+.venv/

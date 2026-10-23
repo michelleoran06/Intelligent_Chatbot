@@ -1,0 +1,3 @@
+query,expected,category
+¿Ejemplo de pregunta que la cafetería sí puede responder?,horarios,direct
+¿Ejemplo de pregunta de otro tema?,ESCALATE,out_of_scope

@@ -1,0 +1,78 @@
+Prueba de humo de la API — 2026-10-21 22:48:43
+Backend: http://127.0.0.1:8000
+
+=== GET /health ===
+GET /health
+Cuerpo: (ninguno)
+HTTP 200  (29 ms)
+{
+  "status": "ok",
+  "knowledge_base_entries": 13,
+  "confidence_threshold": 0.7
+}
+
+=== Pregunta respondible ===
+POST /api/v1/chat
+Cuerpo: {"user_id": "smoke", "user_type": "estudiante", "query": "¿A qué hora abren la cafetería?"}
+HTTP 200  (310 ms)
+{
+  "ticket_id": 1,
+  "query": "¿A qué hora abren la cafetería?",
+  "response": "La cafetería abre de lunes a sábado de 7:00 a.m. a 5:00 p.m. Las puertas se abren desde las 6:30 a.m., pero los productos y desayunos están disponibles a partir de las 7:00 a.m.",
+  "routed_to": "bot",
+  "confidence_score": 1.0,
+  "status": "answered",
+  "method": "semantic",
+  "response_time_ms": 298.34
+}
+
+=== Pregunta fuera de alcance ===
+POST /api/v1/chat
+Cuerpo: {"user_id": "smoke", "user_type": "estudiante", "query": "¿Cuál es la capital de Francia?"}
+HTTP 200  (315 ms)
+{
+  "ticket_id": 2,
+  "query": "¿Cuál es la capital de Francia?",
+  "response": "No encontré una respuesta segura a tu pregunta. Tu pregunta fue enviada a un operador. Por favor espera la respuesta.",
+  "routed_to": "human",
+  "confidence_score": 0.692,
+  "status": "pending_human",
+  "method": "semantic",
+  "response_time_ms": 297.44
+}
+
+=== Mensaje en blanco ===
+POST /api/v1/chat
+Cuerpo: {"user_id": "smoke", "user_type": "estudiante", "query": "   "}
+HTTP 400  (17 ms)
+{
+  "detail": "Tu mensaje está en blanco. Por favor, escribe una pregunta."
+}
+
+=== Mensaje de 501 caracteres ===
+POST /api/v1/chat
+Cuerpo: {"user_id": "smoke", "user_type": "estudiante", "query": "<501 caracteres 'a'>"}
+HTTP 422  (19 ms)
+{
+  "detail": "Tu mensaje es muy largo (máximo 500 caracteres). Por favor, resúmelo un poco e intenta de nuevo.",
+  "errors": [
+    {
+      "field": "query",
+      "error": "String should have at most 500 characters"
+    }
+  ]
+}
+
+=== Sin user_id ===
+POST /api/v1/chat
+Cuerpo: {"user_type": "estudiante", "query": "¿A qué hora abren la cafetería?"}
+HTTP 422  (29 ms)
+{
+  "detail": "La petición no es válida: faltan campos obligatorios o tienen un formato incorrecto.",
+  "errors": [
+    {
+      "field": "user_id",
+      "error": "Field required"
+    }
+  ]
+}

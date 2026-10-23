@@ -1,0 +1,12 @@
+﻿============================= test session starts =============================
+platform win32 -- Python 3.12.0, pytest-9.1.1, pluggy-1.7.0 -- C:\Users\miche\Downloads\intelligent_chatbot_corregido\intelligent_chatbot\.venv\Scripts\python.exe
+cachedir: .pytest_cache
+rootdir: C:\Users\miche\Downloads\intelligent_chatbot_corregido\intelligent_chatbot
+configfile: pytest.ini
+testpaths: tests
+plugins: anyio-4.15.1, locust-2.47.0
+collecting ... collected 51 items / 50 deselected / 1 selected
+
+tests/test_chroma.py::test_real_retrieval_and_reindex PASSED             [100%]
+
+====================== 1 passed, 50 deselected in 9.95s =======================
