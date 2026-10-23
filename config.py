@@ -27,8 +27,9 @@ def _get_int(name: str, default: int) -> int:
 
 
 # Decisión bot / humano (Secciones 8 y 16): S = 1 - d / CONFIDENCE_DIVISOR; responde si S >= umbral
-CONFIDENCE_THRESHOLD = _get_float("CONFIDENCE_THRESHOLD", 0.70)
-CONFIDENCE_DIVISOR = _get_float("CONFIDENCE_DIVISOR", 2.5)
+# Calibrados en la Fase 2 (configuración C, confirmada con evaluation/validation_set.csv)
+CONFIDENCE_THRESHOLD = _get_float("CONFIDENCE_THRESHOLD", 0.75)
+CONFIDENCE_DIVISOR = _get_float("CONFIDENCE_DIVISOR", 2.0)
 
 # Respaldo por palabras clave: solo se usa si la búsqueda semántica no alcanza el umbral
 KEYWORD_CONFIDENCE = _get_float("KEYWORD_CONFIDENCE", 0.75)
@@ -48,7 +49,7 @@ CHROMA_COLLECTION = os.getenv("CHROMA_COLLECTION", "knowledge_base_cafe")
 # Cualquier otro valor es un modelo de sentence-transformers (requirements-experiment.txt).
 EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "default").strip() or "default"
 # Ejemplos de rechazo (knowledge_base.REJECTION_EXAMPLES): escalan preguntas de otros temas
-USE_REJECTION_EXAMPLES = os.getenv("USE_REJECTION_EXAMPLES", "false").strip().lower() in ("1", "true", "yes", "si", "sí")
+USE_REJECTION_EXAMPLES = os.getenv("USE_REJECTION_EXAMPLES", "true").strip().lower() in ("1", "true", "yes", "si", "sí")
 
 # Si se define, los endpoints que modifican la base de conocimiento exigen el encabezado X-Admin-Token
 ADMIN_TOKEN = os.getenv("ADMIN_TOKEN", "")

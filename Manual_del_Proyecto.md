@@ -90,8 +90,8 @@ Los datos se guardan en el volumen `chatbot_data`, así que sobreviven al reempl
 
 | Variable | Valor por defecto | Uso |
 |---|---|---|
-| `CONFIDENCE_THRESHOLD` | 0.70 | Umbral S para responder automáticamente |
-| `CONFIDENCE_DIVISOR` | 2.5 | Divisor de la fórmula S = 1 − d / divisor |
+| `CONFIDENCE_THRESHOLD` | 0.75 | Umbral S para responder automáticamente |
+| `CONFIDENCE_DIVISOR` | 2.0 | Divisor de la fórmula S = 1 − d / divisor |
 | `KEYWORD_CONFIDENCE` | 0.75 | Confianza asignada al respaldo por palabras clave |
 | `MAX_QUERY_LENGTH` | 500 | Máximo de caracteres por pregunta |
 | `DATA_DIR` | ./data | Carpeta de SQLite y ChromaDB |
@@ -99,7 +99,7 @@ Los datos se guardan en el volumen `chatbot_data`, así que sobreviven al reempl
 | `BACKEND_URL` | http://127.0.0.1:8000 | Dirección del backend (solo en las interfaces) |
 | `MAX_MESSAGES` | 15 | Límite de mensajes por sesión de chat |
 | `EMBEDDING_MODEL` | default | `default` = all-MiniLM-L6-v2; otro valor = modelo de sentence-transformers |
-| `USE_REJECTION_EXAMPLES` | false | Indexa ejemplos de preguntas de otros temas para escalarlas |
+| `USE_REJECTION_EXAMPLES` | true | Indexa ejemplos de preguntas de otros temas para escalarlas |
 
 Copia `.env.example` como `.env` para tenerlas a mano. El archivo `.env` **nunca** se sube a GitHub.
 

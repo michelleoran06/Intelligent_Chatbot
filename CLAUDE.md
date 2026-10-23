@@ -4,7 +4,7 @@ Proyecto escolar **Intelligent Chatbot** (Software Engineering II, UAEMéx, Equi
 
 ## Arquitectura (ver Manual_del_Proyecto.md)
 - `main.py`: API FastAPI. Validación Fail Fast → saludos → solicitud de operador (RF10) → motor de IA → Strategy → registro en SQLite.
-- `nlp_engine.py`: recuperación semántica en ChromaDB primero (S = 1 − d / 2.5). Si S < 0.70, respaldo por palabras clave con ≥ 2 coincidencias y confianza fija de 0.75.
+- `nlp_engine.py`: recuperación semántica en ChromaDB primero (S = 1 − d / 2.0), con ejemplos de rechazo. Si S < 0.75, respaldo por palabras clave con ≥ 2 coincidencias y confianza fija de 0.75.
 - `patterns.py`: patrones Strategy (`resolve()`, estados `answered` / `pending_human`) y Observer.
 - `database.py`: SQLite. La tabla `knowledge_entries` es la fuente de verdad y se propaga a ChromaDB en segundo plano.
 - `frontend.py` y `dashboard.py`: Streamlit. Leen la dirección del backend de `BACKEND_URL`.
@@ -12,12 +12,12 @@ Proyecto escolar **Intelligent Chatbot** (Software Engineering II, UAEMéx, Equi
 
 ## Decisiones fijas (NO cambiar sin autorización explícita del equipo)
 - **Sin LLM:** el bot solo devuelve respuestas almacenadas o escala a un humano.
-- **Umbral 0.70 y divisor 2.5.** Solo se cambian si la calibración lo justifica y el equipo lo aprueba.
+- **Umbral 0.75, divisor 2.0 y ejemplos de rechazo activos** (`USE_REJECTION_EXAMPLES=true`), calibrados en la Fase 2 (configuración C, confirmada con el conjunto de validación independiente). Solo se cambian si una nueva calibración lo justifica y el equipo lo aprueba.
 - **Límites:** 500 caracteres por pregunta y 15 mensajes por sesión.
 - **Mensajes al usuario:** en español, iguales a la Tabla 5 del reporte.
 - **Estructura del repositorio:** plana, sin carpetas por capa.
 - **Base de conocimiento v2** (`knowledge_base.py`, fuente: `docs/fuentes/base_de_conocimiento_cafeteria.txt`). No inventar productos, precios ni horarios.
-- **En producción, mientras el equipo no decida otra cosa:** `EMBEDDING_MODEL=default` y `USE_REJECTION_EXAMPLES=false`. El experimento de la Fase 2 solo mide; no cambia esos valores.
+- **Modelo de embeddings en producción:** `EMBEDDING_MODEL=default` (all-MiniLM-L6-v2). El modelo multilingüe se descartó en la Fase 2 porque no cabe en la memoria de Render.
 - **Conjunto de validación independiente:** `evaluation/validation_set.csv` lo escribe el equipo. No usarlo para ajustar nada; solo para la medición final.
 
 ## Reglas de trabajo

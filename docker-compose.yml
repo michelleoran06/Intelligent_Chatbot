@@ -14,8 +14,9 @@ services:
       - "8000:8000"
     environment:
       DATA_DIR: /app/data
-      CONFIDENCE_THRESHOLD: "0.70"
-      CONFIDENCE_DIVISOR: "2.5"
+      CONFIDENCE_THRESHOLD: "0.75"
+      CONFIDENCE_DIVISOR: "2.0"
+      USE_REJECTION_EXAMPLES: "true"
       MAX_QUERY_LENGTH: "500"
       ADMIN_TOKEN: ${ADMIN_TOKEN:-}
     volumes:
