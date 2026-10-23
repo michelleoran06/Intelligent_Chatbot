@@ -71,6 +71,14 @@ Ejecutada por Claude Code en Windows 11 con Python 3.12. Detalle completo: `eval
 | Python 3.12 en el `Dockerfile` y en la CI | Es la versión con la que se verificó todo | C5, C7 |
 | `evaluation/results/` deja de ignorarse en git | La evidencia del reporte debe estar en el repositorio | C7 |
 
+**Ejecución (23-oct-2026, Claude Code):**
+
+- Se instaló Git 2.55 con `winget`, porque no estaba instalado (hallazgo H3).
+- No existía un clon del repositorio. Se inicializó un repositorio **local** en `intelligent_chatbot_corregido/intelligent_chatbot`, en la rama `correcciones-entrega3`, sin remoto. Por decisión del equipo, se sube a GitHub al final.
+- `ruff.toml` **no estaba** en la carpeta del proyecto, aunque la Fase 1 lo registra; se tomó la versión de `fase2`.
+- Se reemplazaron `ruff.toml`, `.gitignore`, `Dockerfile` y `ci.yml` con sus versiones de `fase2`. `requirements-dev.txt` era idéntico.
+- Se verificó que el commit no incluye `.env`, `data/`, `*.db`, `chroma_data/` ni `.venv/`.
+
 ---
 
 ## Fase 2 — Base de conocimiento v2 y experimento de calidad
@@ -139,13 +147,69 @@ Se reemplazaron 3 consultas sobre productos que ya no existen por consultas sobr
 - **Archivos:** `knowledge_base.py`, `vector_store.py`, `nlp_engine.py`, `config.py`, `calibrate_confidence.py`, `experiment_quality.py`, `requirements-experiment.txt`, `tests/`.
 - **Pruebas nuevas:** rechazo explícito, que el rechazo no bloquee preguntas de la cafetería, palabras clave de carnitas y unicidad de los ids.
 
-**Resultados:** pendientes de ejecución → `evaluation/results/experimento_calidad/RESULTADOS_EXPERIMENTO.md`.
+### Resultados del experimento (23-oct-2026)
+
+Ejecutado por Claude Code en Windows 11 con Python 3.12.0, torch 2.14.1 y sentence-transformers 6.2.0.
+
+**Pruebas previas:** `ruff check .` sin avisos; `pytest tests/test_unit.py tests/test_integration.py -v` → **56/56 pasaron** (`pytest_fase2.txt`).
+
+**Evidencia:**
+- `evaluation/results/experimento_calidad/RESULTADOS_EXPERIMENTO.md` (reporte completo, con los casos fallidos)
+- `consola.txt`
+- `config_A.json` … `config_D.json`
+- `grid_completo.csv`
+
+**Con la configuración vigente (umbral 0.70, divisor 2.5), 120 consultas:**
+
+| Config. | Modelo | Rechazo | TP | FP | FN | TN | Exactitud | Precisión | Recall | F1 | Escalamiento | Hit@1 | Hit@3 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| A | default | no | 74 | 24 | 4 | 18 | 0.767 | 0.755 | 0.949 | 0.841 | 0.183 | 0.885 | 0.954 |
+| B | paraphrase-multilingual-MiniLM-L12-v2 | no | 79 | 41 | 0 | 0 | 0.658 | 0.658 | 1.000 | 0.794 | 0.000 | 0.908 | 0.943 |
+| C | default | sí | 74 | 21 | 4 | 21 | 0.792 | 0.779 | 0.949 | 0.856 | 0.208 | 0.885 | 0.954 |
+| D | paraphrase-multilingual-MiniLM-L12-v2 | sí | 79 | 23 | 0 | 18 | 0.808 | 0.774 | 1.000 | 0.873 | 0.150 | 0.908 | 0.943 |
+
+**Mejor combinación con precisión ≥ 0.90** (optimista: se ajustó sobre el mismo conjunto):
+
+| Config. | Umbral | Divisor | Precisión | Recall | F1 | Escalamiento |
+|---|---|---|---|---|---|---|
+| A | 0.75 | 2.0 | 0.900 | 0.847 | 0.873 | 0.333 |
+| B | 0.85 | 1.5 | 0.942 | 0.756 | 0.839 | 0.425 |
+| C | 0.75 | 2.0 | 0.911 | 0.847 | 0.878 | 0.342 |
+| D | 0.85 | 1.5 | 0.942 | 0.756 | 0.839 | 0.425 |
+
+**Recursos:**
+
+| Config. | Documentos | Construcción del índice (s) | RSS final (MB) | Latencia media (ms) | Latencia p95 (ms) | ¿Cabe en Render? |
+|---|---|---|---|---|---|---|
+| A | 101 | 16.9 | 160.3 | 538.8 | 1369.5 | sí |
+| B | 101 | 87.7 | 1321.0 | 16.0 | 18.7 | no |
+| C | 141 | 4.6 | 137.5 | 267.3 | 322.4 | sí |
+| D | 141 | 19.1 | 1308.9 | 15.9 | 17.4 | no |
+
+**Recomendación automática del script:** configuración **C** con umbral 0.75 y divisor 2.0. Da precisión 0.911, recall 0.847, F1 0.878 y RSS 137.5 MB. **No se aplicó.**
+- Cambia el umbral y el divisor, que son decisiones fijas: requieren aprobación del equipo.
+- Hay que confirmarla con `evaluation/validation_set.csv`.
+
+**Observaciones para interpretar en el reporte:**
+
+- **O1, modelo multilingüe y divisor.** Con el divisor 2.5, el modelo multilingüe (B) pone todas las consultas por encima de 0.70 y nunca escala (escalamiento 0.000, TN = 0). Su escala de distancias es distinta, así que el divisor 2.5 no le sirve. Por eso su mejor punto exige umbral 0.85 y divisor 1.5.
+- **O2, los ejemplos de rechazo ayudan poco con el modelo actual.** De A a C, los FP bajan de 24 a 21. Con el modelo multilingüe, de B a D, bajan de 41 a 23. Efecto secundario en C: la consulta "precios" (esperado `menu_general`) pasó a `rejected` (FN).
+- **O3, memoria.** B y D usan unos 1.3 GB de RSS, porque cargan torch y sentence-transformers. No caben en Render (límite seguro de 450 MB). A y C usan el modelo ONNX de ChromaDB (~140–160 MB).
+- **O4, la latencia de A no es comparable.** A corrió primero y su tiempo incluye el arranque en frío del modelo ONNX (construcción del índice 16.9 s contra 4.6 s en C). La diferencia de latencia entre A y C se debe sobre todo al calentamiento, no al rechazo. Las latencias de B y D (~16 ms) se midieron con torch en CPU, después de cargar el modelo.
+- **O5, las fallas son de calidad, no de la herramienta.** Las preguntas fuera de alcance que mencionan pagos o precios ("¿Aceptan tarjeta en la papelería?", "¿Cuánto cuesta la colegiatura?") siguen obteniendo S > 0.80 en todas las configuraciones.
+
+**Advertencias de la ejecución (no afectan los resultados):**
+- `huggingface_hub` avisó que las peticiones a HF Hub no están autenticadas (sin `HF_TOKEN`).
+- Windows no permite symlinks en la caché de Hugging Face, así que la caché ocupa más espacio en disco.
+- La ruta del conjunto aparece como `evaluation\test_set.csv` (separador de Windows) en el reporte. Es solo estético.
+- **No hubo errores.** Las cuatro configuraciones terminaron con código 0.
 
 ---
 
 ## Pendiente
 
-- [ ] Ejecutar el experimento en el equipo (Claude Code) y registrar aquí los resultados.
+- [x] Ejecutar el experimento en el equipo (Claude Code) y registrar aquí los resultados (23-oct-2026).
+- [ ] Subir el repositorio local (rama `correcciones-entrega3`) a GitHub.
 - [ ] El equipo escribe `evaluation/validation_set.csv` (~40 consultas) para la medición final.
 - [ ] Decidir la configuración de producción y, si cambia, actualizar `config.py`, el `Dockerfile` (precarga del modelo), los requisitos y el reporte.
 - [ ] Fase 3: optimizaciones de desempeño (límite de embeddings simultáneos, precarga del modelo) y nueva prueba de carga por escalones.
