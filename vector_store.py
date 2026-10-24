@@ -74,7 +74,8 @@ def make_embedding_function(model_name: str):
 class ChromaVectorStore:
     def __init__(self, path: Optional[str] = None, collection_name: Optional[str] = None,
                  persistent: bool = True, embedding_model: Optional[str] = None,
-                 rejection_examples: Optional[Iterable[str]] = None):
+                 rejection_examples: Optional[Iterable[str]] = None,
+                 embedding_concurrency: Optional[int] = None):
         self.path = path or config.CHROMA_PATH
         self.collection_name = collection_name or config.CHROMA_COLLECTION
         self.persistent = persistent
@@ -86,6 +87,11 @@ class ChromaVectorStore:
         self._client = None
         self._collection = None
         self._write_lock = threading.RLock()
+        # Fase 3: limita cuántas consultas calculan su embedding a la vez. Sin límite, decenas de
+        # hilos compiten por la CPU y todas las respuestas se vuelven lentas al mismo tiempo.
+        limit = config.EMBEDDING_CONCURRENCY if embedding_concurrency is None else embedding_concurrency
+        self.embedding_concurrency = max(0, int(limit))
+        self._query_slots = threading.BoundedSemaphore(self.embedding_concurrency) if self.embedding_concurrency else None
 
     def _get_client(self):
         if self._client is None:
@@ -144,6 +150,10 @@ class ChromaVectorStore:
         with self._write_lock:
             self._get_collection().delete(where={"kb_id": kb_id})
 
+    @staticmethod
+    def _run_query(collection, text: str, n_results: int):
+        return collection.query(query_texts=[text], n_results=n_results, include=["metadatas", "distances"])
+
     def count(self) -> int:
         return self._get_collection().count()
 
@@ -155,11 +165,11 @@ class ChromaVectorStore:
         total = collection.count()
         if total == 0:
             return []
-        result = collection.query(
-            query_texts=[text],
-            n_results=min(n_results, total),
-            include=["metadatas", "distances"],
-        )
+        if self._query_slots is None:
+            result = self._run_query(collection, text, min(n_results, total))
+        else:
+            with self._query_slots:
+                result = self._run_query(collection, text, min(n_results, total))
         metadatas = (result.get("metadatas") or [[]])[0] or []
         distances = (result.get("distances") or [[]])[0] or []
         best = {}

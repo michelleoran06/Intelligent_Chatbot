@@ -188,6 +188,8 @@ def health():
         "knowledge_base_version": KB_SEED_VERSION,
         "embedding_model": config.EMBEDDING_MODEL,
         "rejection_examples": config.USE_REJECTION_EXAMPLES,
+        "embedding_concurrency": config.EMBEDDING_CONCURRENCY,
+        "nlp_cache_size": config.NLP_CACHE_SIZE,
     }
 
 
