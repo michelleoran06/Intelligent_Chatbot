@@ -492,6 +492,46 @@ Cada celda muestra throughput · p50 · p95 · errores. La única celda que cump
 
 ---
 
+## Incidencia en Render: memoria al arrancar (23-oct-2026)
+
+**Rama:** `fix/memoria-render`, creada desde `main` después de unir el PR #1 (`c84f9e4`).
+
+**Síntoma:** al desplegar en Render (plan de 512 MB), el backend se detenía con **"Out of memory"** al arrancar, antes de atender peticiones.
+
+**Evidencia (log de Render):**
+
+```
+PENDIENTE: pegar aquí el fragmento del log de Render con el error "Out of memory".
+```
+
+**Causa:**
+1. **El índice se construía de una sola vez.** Al arrancar, `rebuild()` agregaba los **141 documentos** (101 de la base de conocimiento y 40 de rechazo) en una sola llamada a `collection.add()`. ChromaDB calcula todos esos embeddings en un único lote, así que la memoria pico del arranque crece con el tamaño del lote.
+2. **Hilos de ONNX Runtime en Linux.** En Linux (contenedor de Render), ONNX Runtime crea varios hilos de inferencia. glibc reserva una arena de memoria por hilo, y eso infla la RSS del proceso. En Windows este efecto no aparece, por eso las mediciones locales (pico de 426.8 MB con carga, en la Fase 3) no lo detectaron.
+
+**Solución:**
+
+| Cambio | Archivo |
+|---|---|
+| Nueva función `add_in_batches()`: el índice se construye por **lotes de 16 documentos** (`EMBEDDING_BATCH_SIZE`). Se aplica en `rebuild()` y en `upsert_entry()` | `vector_store.py` |
+| `EMBEDDING_BATCH_SIZE = _get_int("EMBEDDING_BATCH_SIZE", 16)` | `config.py` |
+| `peak_memory_mb()` (memoria máxima del proceso con `resource.getrusage`; `None` en Windows). Se registra en el log de arranque y aparece en `/health` | `main.py` |
+| Pruebas: el índice de 141 documentos se agrega en lotes de máximo 16 y en total 141; con un índice vacío no se agrega nada | `tests/test_performance.py` |
+| `MALLOC_ARENA_MAX: "2"` (limita las arenas de glibc) y `EMBEDDING_BATCH_SIZE: "16"` en el backend | `docker-compose.yml` |
+| Ambas variables documentadas | `.env.example`, `Manual_del_Proyecto.md` |
+
+Se revisaron las diferencias de `vector_store.py`, `main.py` y `tests/test_performance.py`: solo agregan cosas. **No deshacen la configuración C** (umbral 0.75, divisor 2.0, rechazo activo) **ni el Plan B** (`EMBEDDING_CONCURRENCY=2`, `SERVER_THREADS=200`).
+
+**Verificación local** (`evaluation/results/fix_memoria_render/`):
+- `ruff check .`: sin avisos.
+- `pytest -v`: **64/64** (62 anteriores y 2 nuevas; `pytest_fix_memoria.txt`).
+- **Backend local:** el log de arranque dice "Índice vectorial reconstruido: 141 documentos (modelo=default, rechazo=40 ejemplos)". `/health` responde con `embedding_concurrency: 2`, `server_threads: 200` y `peak_memory_mb: null`, que es lo esperado en Windows porque no existe el módulo `resource` (`health_local.json`).
+
+**Pendiente para confirmar la solución:**
+- **`MALLOC_ARENA_MAX` en Render.** `docker-compose.yml` solo se usa en local, y el `Dockerfile` no define esa variable. Hay que agregar `MALLOC_ARENA_MAX=2` en *Environment* del servicio en Render, o en el `Dockerfile` si Render construye desde la imagen. `EMBEDDING_BATCH_SIZE` no lo necesita, porque su valor por defecto ya es 16 en `config.py`.
+- **Después del despliegue,** revisar en el log de Render la línea "Memoria pico del arranque: X MB" y el campo `peak_memory_mb` de `/health`. En Linux sí tienen valor, y son la evidencia de que el arranque cabe en 512 MB.
+
+---
+
 ## Pendiente
 
 - [x] Ejecutar el experimento en el equipo (Claude Code) y registrar aquí los resultados (23-oct-2026).
@@ -504,5 +544,6 @@ Cada celda muestra throughput · p50 · p95 · errores. La única celda que cump
 - [ ] Trabajo futuro: separar la caché del cálculo de embeddings para que el límite no bloquee las respuestas en caché.
 - [x] Plan B adoptado: `EMBEDDING_CONCURRENCY=2` y `SERVER_THREADS=200`, con un pico de 426.8 MB (23-oct-2026).
 - [ ] Vigilar la memoria del backend en Render después del despliegue (margen de 23 MB en la medición local).
+- [ ] Incidencia "Out of memory" en Render: pegar el log en la bitácora, definir `MALLOC_ARENA_MAX=2` en Render y registrar `peak_memory_mb` después de desplegar `fix/memoria-render`.
 - [ ] Actualizar el reporte (Secciones 18 y 19, Tabla 31, Figuras 18 y 19) con la configuración y las mediciones de la Fase 3.
 - [ ] Docker: instalar Docker Desktop o usar como evidencia el job `docker` de GitHub Actions.
