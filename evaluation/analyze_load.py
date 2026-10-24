@@ -27,17 +27,20 @@ def to_float(value):
     return None if math.isnan(number) else number
 
 
-def summarize(prefix, ramp_seconds):
+def summarize(prefix, ramp_seconds, steps=None):
     path = prefix if prefix.endswith(".csv") else f"{prefix}_stats_history.csv"
     with open(path, newline="", encoding="utf-8") as handle:
         rows = [r for r in csv.DictReader(handle) if r.get("Name") == "Aggregated"]
-    steps = {}
+    groups = {}
     for row in rows:
         users = int(to_float(row.get("User Count")) or 0)
         if users:
-            steps.setdefault(users, []).append(row)
+            groups.setdefault(users, []).append(row)
+    if steps:
+        # Solo los escalones configurados: los conteos intermedios son la rampa entre escalones
+        groups = {u: rows_ for u, rows_ in groups.items() if u in steps}
     results = []
-    for users, items in sorted(steps.items()):
+    for users, items in sorted(groups.items()):
         start = to_float(items[0]["Timestamp"])
         stable = [r for r in items if to_float(r["Timestamp"]) - start >= ramp_seconds] or items
         rps = [to_float(r["Requests/s"]) for r in stable if to_float(r["Requests/s"]) is not None]
@@ -65,13 +68,16 @@ def main():
     parser.add_argument("prefixes", nargs="+", help="prefijos usados en locust --csv")
     parser.add_argument("--labels", nargs="+", help="nombre de cada escenario")
     parser.add_argument("--ramp-seconds", type=float, default=15.0)
+    parser.add_argument("--steps", default=os.getenv("STEP_USERS", "10,25,50,100"),
+                        help="escalones de usuarios que se configuraron en la prueba (los demás se ignoran)")
     parser.add_argument("--out", default=os.path.join("evaluation", "results", "carga_resumen"))
     args = parser.parse_args()
     labels = args.labels or [os.path.basename(p) for p in args.prefixes]
     if len(labels) != len(args.prefixes):
         parser.error("--labels debe tener un nombre por cada prefijo")
 
-    scenarios = [(label, summarize(prefix, args.ramp_seconds)) for label, prefix in zip(labels, args.prefixes)]
+    steps = {int(u) for u in args.steps.split(",") if u.strip()}
+    scenarios = [(label, summarize(prefix, args.ramp_seconds, steps)) for label, prefix in zip(labels, args.prefixes)]
     lines = ["# Resumen de pruebas de carga", "",
              f"Latencias en segundos. RNF01: p95 < {RNF01_SECONDS} s. Percentiles aproximados a partir de "
              "las ventanas de Locust, descartando la rampa de cada escalón.", ""]
