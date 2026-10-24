@@ -39,6 +39,7 @@ SEMANTIC_RESULTS = _get_int("SEMANTIC_RESULTS", 20)
 # Calibrados en la Fase 3 (Plan B): 2 embeddings a la vez y 200 hilos para que las respuestas en caché no esperen turno
 EMBEDDING_CONCURRENCY = _get_int("EMBEDDING_CONCURRENCY", 2)
 SERVER_THREADS = _get_int("SERVER_THREADS", 200)
+EMBEDDING_BATCH_SIZE = _get_int("EMBEDDING_BATCH_SIZE", 16)
 NLP_CACHE_SIZE = _get_int("NLP_CACHE_SIZE", 256)
 
 MAX_QUERY_LENGTH = _get_int("MAX_QUERY_LENGTH", 500)

@@ -106,6 +106,8 @@ Los datos se guardan en el volumen `chatbot_data`, así que sobreviven al reempl
 | `USE_REJECTION_EXAMPLES` | true | Indexa ejemplos de preguntas de otros temas para escalarlas |
 | `EMBEDDING_CONCURRENCY` | 2 | Máximo de consultas que calculan su embedding a la vez (0 = sin límite) |
 | `SERVER_THREADS` | 200 | Hilos del servidor para los endpoints; las respuestas en caché no esperan a los cálculos de embeddings |
+| `EMBEDDING_BATCH_SIZE` | 16 | Documentos por lote al construir el índice vectorial; limita la memoria pico al arrancar |
+| `MALLOC_ARENA_MAX` | 2 (en Docker/Render) | Variable de glibc (solo Linux): limita las arenas de memoria por hilo y reduce la memoria del proceso. No la lee `config.py` |
 
 Copia `.env.example` como `.env` para tenerlas a mano. El archivo `.env` **nunca** se sube a GitHub.
 

@@ -1,0 +1,7 @@
+INFO:     Started server process [34876]
+INFO:     Waiting for application startup.
+2026-10-23 21:25:23,215 [INFO] ChatbotAPI: Base de conocimiento sincronizada a la versión 2026-10-cafeteria-v2 (antes: None). Nuevas: ['horarios', 'pagos', 'ubicacion', 'desayunos', 'antojitos', 'chilaquiles', 'sandwiches', 'paquetes', 'pizzas', 'carnitas', 'bebidas', 'postres', 'menu_del_dia', 'menu_general'] | actualizadas: [] | eliminadas: []
+2026-10-23 21:25:29,265 [INFO] VectorStore: Índice vectorial reconstruido: 141 documentos (modelo=default, rechazo=40 ejemplos).
+2026-10-23 21:25:29,268 [INFO] ChatbotAPI: Backend listo: 14 entradas en la base de conocimiento. Memoria pico del arranque: None MB.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)

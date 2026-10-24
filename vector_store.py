@@ -57,6 +57,15 @@ def documents_for_rejection(examples: Iterable[str]) -> Tuple[List[str], List[st
     return ids, documents, metadatas
 
 
+def add_in_batches(collection, ids, documents, metadatas, batch_size: int) -> None:
+    """Agrega documentos por lotes: el embedding de cada lote se calcula por separado, lo que
+    limita la memoria pico (calcular 141 documentos juntos excedía los 512 MB de Render)."""
+    size = max(1, int(batch_size))
+    for start in range(0, len(ids), size):
+        end = start + size
+        collection.add(ids=ids[start:end], documents=documents[start:end], metadatas=metadatas[start:end])
+
+
 def make_embedding_function(model_name: str):
     """None = función por defecto de chromadb; otro nombre = sentence-transformers normalizado."""
     if not model_name or model_name == "default":
@@ -132,8 +141,7 @@ class ChromaVectorStore:
                 ids.extend(entry_ids)
                 documents.extend(entry_docs)
                 metadatas.extend(entry_meta)
-            if ids:
-                self._collection.add(ids=ids, documents=documents, metadatas=metadatas)
+            add_in_batches(self._collection, ids, documents, metadatas, config.EMBEDDING_BATCH_SIZE)
             logger.info("Índice vectorial reconstruido: %d documentos (modelo=%s, rechazo=%d ejemplos).",
                         len(ids), self.embedding_model, len(self.rejection_examples))
             return len(ids)
@@ -143,8 +151,7 @@ class ChromaVectorStore:
             collection = self._get_collection()
             collection.delete(where={"kb_id": entry["id"]})
             ids, documents, metadatas = documents_for_entry(entry)
-            if ids:
-                collection.add(ids=ids, documents=documents, metadatas=metadatas)
+            add_in_batches(collection, ids, documents, metadatas, config.EMBEDDING_BATCH_SIZE)
 
     def delete_entry(self, kb_id: str) -> None:
         with self._write_lock:
