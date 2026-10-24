@@ -17,6 +17,7 @@ Proyecto escolar **Intelligent Chatbot** (Software Engineering II, UAEMéx, Equi
 - **Mensajes al usuario:** en español, iguales a la Tabla 5 del reporte.
 - **Estructura del repositorio:** plana, sin carpetas por capa.
 - **Base de conocimiento v2** (`knowledge_base.py`, fuente: `docs/fuentes/base_de_conocimiento_cafeteria.txt`). No inventar productos, precios ni horarios.
+- **Desempeño: límite de 2 embeddings simultáneos y 200 hilos del servidor** (`EMBEDDING_CONCURRENCY=2`, `SERVER_THREADS=200`), calibrados en la Fase 3 (Plan B; pico de memoria medido: 426.8 MB con 100 usuarios). Solo se cambian si una nueva medición lo justifica y el equipo lo aprueba.
 - **Modelo de embeddings en producción:** `EMBEDDING_MODEL=default` (all-MiniLM-L6-v2). El modelo multilingüe se descartó en la Fase 2 porque no cabe en la memoria de Render.
 - **Conjunto de validación independiente:** `evaluation/validation_set.csv` lo escribe el equipo. No usarlo para ajustar nada; solo para la medición final.
 
