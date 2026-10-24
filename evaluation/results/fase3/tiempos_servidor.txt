@@ -1,0 +1,20 @@
+﻿sin_limite_sin_cache (362 registros, tabla conversation_logs)
+  escal�n  10 usuarios: n= 103  mediana servidor=  3113.8 ms  p95 servidor=  5438.7 ms
+  escal�n  25 usuarios: n=  78  mediana servidor= 10227.6 ms  p95 servidor= 15045.5 ms
+  escal�n  50 usuarios: n=  95  mediana servidor=  9432.7 ms  p95 servidor= 15087.0 ms
+  escal�n 100 usuarios: n=  78  mediana servidor= 12632.1 ms  p95 servidor= 17978.5 ms
+limite2_sin_cache (477 registros, tabla conversation_logs)
+  escal�n  10 usuarios: n= 148  mediana servidor=  1934.4 ms  p95 servidor=  3041.8 ms
+  escal�n  25 usuarios: n= 112  mediana servidor= 11515.1 ms  p95 servidor= 12764.4 ms
+  escal�n  50 usuarios: n= 110  mediana servidor= 21524.8 ms  p95 servidor= 22522.0 ms
+  escal�n 100 usuarios: n= 107  mediana servidor= 22075.1 ms  p95 servidor= 23160.7 ms
+sin_limite_con_cache (5201 registros, tabla conversation_logs)
+  escal�n  10 usuarios: n= 157  mediana servidor=   797.5 ms  p95 servidor=  5528.9 ms
+  escal�n  25 usuarios: n= 720  mediana servidor=     0.2 ms  p95 servidor=    15.3 ms
+  escal�n  50 usuarios: n=1581  mediana servidor=     0.2 ms  p95 servidor=     4.3 ms
+  escal�n 100 usuarios: n=2743  mediana servidor=     0.1 ms  p95 servidor=     3.5 ms
+limite2_con_cache (1979 registros, tabla conversation_logs)
+  escal�n  10 usuarios: n=  67  mediana servidor=  8723.6 ms  p95 servidor= 10884.6 ms
+  escal�n  25 usuarios: n= 119  mediana servidor=     2.1 ms  p95 servidor= 27184.2 ms
+  escal�n  50 usuarios: n= 364  mediana servidor=     0.2 ms  p95 servidor= 35219.1 ms
+  escal�n 100 usuarios: n=1427  mediana servidor=     0.1 ms  p95 servidor=    10.4 ms
