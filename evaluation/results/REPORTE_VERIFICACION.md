@@ -71,6 +71,13 @@ Evidencia: `entorno_versiones.txt`.
 
 No hubo correcciones de lógica de negocio ni de valores esperados de pruebas.
 
+### C2. (Fase 3, 23-oct-2026) Variable no definida en los escalones de carga de `locustfile.py`
+
+- **Archivo y línea:** `locustfile.py`, línea 59 (versión recibida en `fase3_cambios`), clase `StepLoadShape`.
+- **Error original:** `ruff check .` reportó `F821 Undefined name '_seconds'`. Al importar el archivo con `STEP_LOAD=1` aparece `NameError: name '_seconds' is not defined`, así que locust no podía arrancar la prueba por escalones.
+- **Causa:** `steps = [(users, _seconds) for users in _users]` estaba dentro del cuerpo de la clase. En Python, una comprensión de lista no ve las variables del cuerpo de la clase; la única excepción es el iterable del primer `for` (`_users`). Las pruebas no lo detectaron porque `pytest` no importa el `locustfile`.
+- **Cambio hecho:** los usuarios y la duración de los escalones se calculan fuera de la clase (`_STEP_USERS`, `_STEP_SECONDS`), dentro del mismo `if STEP_LOAD == "1"`. El comportamiento es el mismo que se buscaba: con `STEP_USERS=10,25,50,100` y `STEP_SECONDS=60` se obtiene `[(10, 60), (25, 60), (50, 60), (100, 60)]`. Ahora ruff pasa sin avisos.
+
 ## 4. Métricas de validación del modelo (paso 6)
 
 Conjunto de prueba: 120 consultas. Configuración actual: umbral 0.70, divisor 2.5.

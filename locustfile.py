@@ -7,8 +7,10 @@ los contenedores locales (docker compose) y no contra la base de producción.
 Uso básico (interfaz web en http://localhost:8089):
     locust -f locustfile.py --host http://127.0.0.1:8000
 
-Escalones de 10, 50, 100, 250 y 500 usuarios (60 s cada uno), sin interfaz:
+Escalones de usuarios sin interfaz (por defecto 10, 25, 50 y 100 usuarios, 60 s cada uno):
     STEP_LOAD=1 locust -f locustfile.py --host http://127.0.0.1:8000 --headless --csv evaluation/results/load
+Para otros escalones: STEP_USERS="10,50,100,250,500" y STEP_SECONDS=60.
+Los resultados se resumen con: python evaluation/analyze_load.py <prefijo_csv> ...
 """
 import csv
 import os
@@ -49,10 +51,14 @@ class ChatbotUser(HttpUser):
 
 
 if os.getenv("STEP_LOAD") == "1":
-    class StepLoadShape(LoadTestShape):
-        """Escalones de usuarios concurrentes de la Tabla 31."""
+    # Fuera de la clase: una comprensión dentro del cuerpo de una clase no ve sus variables
+    _STEP_USERS = [int(u) for u in os.getenv("STEP_USERS", "10,25,50,100").split(",") if u.strip()]
+    _STEP_SECONDS = int(os.getenv("STEP_SECONDS", "60"))
 
-        steps = [(10, 60), (50, 60), (100, 60), (250, 60), (500, 60)]
+    class StepLoadShape(LoadTestShape):
+        """Escalones de usuarios concurrentes (Tabla 31)."""
+
+        steps = [(users, _STEP_SECONDS) for users in _STEP_USERS]
         spawn_rate = 10
 
         def tick(self):
