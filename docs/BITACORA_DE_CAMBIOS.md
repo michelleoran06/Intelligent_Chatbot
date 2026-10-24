@@ -298,6 +298,77 @@ Ejecutado por Claude Code en Windows 11 con Python 3.12.0, torch 2.14.1 y senten
 
 ---
 
+## Fase 3 — Desempeño: límite de embeddings simultáneos (23-oct-2026)
+
+**Objetivo:** medir si limitar cuántas consultas calculan su embedding a la vez reduce la saturación de CPU (hallazgo H2 de la Fase 1). **Solo se midió.** El límite queda desactivado por defecto (`EMBEDDING_CONCURRENCY=0`) hasta que el equipo decida.
+
+### Cambios en el código
+
+| Cambio | Archivo |
+|---|---|
+| Límite opcional de embeddings simultáneos (`threading.BoundedSemaphore`); con 0 no hay límite | `vector_store.py` |
+| Nueva variable `EMBEDDING_CONCURRENCY = _get_int("EMBEDDING_CONCURRENCY", 0)` | `config.py` |
+| `/health` muestra `embedding_concurrency` y `nlp_cache_size` | `main.py` |
+| Escalones configurables con `STEP_USERS` y `STEP_SECONDS` (por defecto 10, 25, 50 y 100 usuarios, 60 s) | `locustfile.py` |
+| Script de resumen por escalón (tabla y gráfica) | `evaluation/analyze_load.py` |
+| Pruebas del límite: se respeta, sin límite hay concurrencia completa y el resultado no cambia | `tests/test_performance.py` |
+
+Se revisaron las diferencias de `vector_store.py`, `main.py` y `locustfile.py`: solo agregan cosas y no deshacen la configuración C ni otros cambios previos.
+
+**Corrección C2** (detalle en `REPORTE_VERIFICACION.md`): el `locustfile.py` recibido tenía `NameError: _seconds` en `StepLoadShape`, así que la prueba por escalones no arrancaba. Ruff lo detectó como F821. Se corrigió calculando los escalones fuera del cuerpo de la clase.
+
+**Verificación** (`evaluation/results/fase3/pytest_fase3.txt`):
+- `ruff check .`: sin avisos.
+- `pytest -v`: **62/62** pasaron (unitarias, integración, ChromaDB y las 3 nuevas de desempeño).
+
+### Pruebas de carga
+
+**Condiciones:**
+- Backend **local** (Windows 11, Python 3.12, un proceso uvicorn), con un `DATA_DIR` temporal nuevo en cada corrida y la configuración C.
+- Locust con escalones de 10, 25, 50 y 100 usuarios, 60 s cada uno, y una mezcla de las 120 consultas de `test_set.csv` (4 respondibles por cada 1 que se escala).
+- Las variables de cada corrida se comprobaron con `/health` (`<corrida>_health.json`).
+
+**Evidencia:** `evaluation/results/fase3/`
+- `<corrida>_stats*.csv`
+- `<corrida>_failures.csv`
+- logs de locust y del backend
+- `corridas_log.txt`
+- `carga_resumen.md` y `carga_resumen.png`
+- `tiempos_servidor.txt`
+
+**Resumen** (de `carga_resumen.md`; latencias del cliente en segundos; RNF01: p95 < 2.5 s):
+
+| Usuarios | Sin límite, sin caché | Límite 2, sin caché | Sin límite, con caché | Límite 2, con caché |
+|---|---|---|---|---|
+| 10 | 1.71 req/s · p50 3.8 · p95 7.6 · 0 % | 2.43 req/s · p50 1.9 · p95 3.2 · 0 % | 2.30 req/s · p50 3.6 · p95 8.1 · 0 % | 1.03 req/s · p50 9.0 · p95 11 · 0 % |
+| 25 | 1.24 · 4.2 · 19 · 0 % | 1.79 · 2.4 · 13 · 0 % | 11.79 · 0.017 · 6.4 · 0 % | 1.75 · 8.7 · 25 · 0 % |
+| 50 | 1.78 · 12 · 28 · **7.89 %** | 1.83 · 5.9 · 25 · 0 % | 24.88 · 0.015 · 2.9 · 0 % | 4.98 · 0.18 · 27 · 0 % |
+| 100 | 0.32 · 15 · 45 · **3.80 %** | 1.82 · 12 · 29 · 0 % | 49.34 · 0.013 · **0.115** · 0 % ✔ | 24.85 · 0.18 · 27 · 0 % |
+
+Cada celda muestra throughput · p50 · p95 · errores. La única celda que cumple RNF01 en un escalón completo es "Sin límite, con caché" con 100 usuarios.
+
+**Interpretación (para el reporte; la decisión es del equipo):**
+
+1. **Sin caché, la capacidad real es de unas 2 consultas nuevas por segundo**, con o sin límite. El cuello de botella es el cálculo del embedding con ONNX en CPU. Ninguna variante sin caché cumple RNF01.
+2. **El límite de 2 mejora la carga baja y elimina los errores.**
+   - Con 10 usuarios, el p50 baja de 3.8 a 1.9 s y el p95 de 7.6 a 3.2 s.
+   - Con 50 y 100 usuarios ya no hay errores `HTTP 0`.
+   - No aumenta el throughput: la espera pasa de competir por la CPU a hacer cola en el semáforo. Por eso el tiempo *dentro* del servidor sube con el límite: 22 s de mediana con 50 y 100 usuarios (`tiempos_servidor.txt`).
+3. **Con caché, la prueba mide sobre todo el calentamiento.** Solo hay 120 consultas distintas, y la caché tiene 256 entradas.
+   - Sin límite, la caché se llena en el primer minuto. Desde los 25 usuarios, la mediana del servidor es de 0.2 ms y con 100 usuarios el p95 es de 0.115 s.
+   - Con el límite de 2, la caché se llena más despacio y las peticiones encoladas en el semáforo ocupan los hilos del servidor. El p95 se queda en ~27 s hasta 100 usuarios, aunque la mediana ya es baja (0.18 s).
+4. **Conclusión provisional:** con preguntas repetidas, el límite de 2 retrasa el calentamiento de la caché y empeora la cola de latencias. Sin caché, ayuda a la latencia con poca carga y evita errores, pero no aumenta la capacidad.
+
+### Incidencias
+
+- **I1. Errores `HTTP 0` (9 en total)** solo en "Sin límite, sin caché": 5 en preguntas respondibles y 4 en las que se escalan. Ocurrieron entre los escalones de 50 y 100 usuarios (00:21:10–00:22:43 UTC). Son errores de conexión del lado del cliente durante la saturación, igual que en la Fase 1.
+- **I2. Anomalía sin explicar en "Límite 2, con caché" con 10 usuarios.** La mediana del servidor fue de 8.7 s, contra 1.9 s en "Límite 2, sin caché" en el mismo escalón. Con la caché todavía vacía deberían comportarse igual, y el código no tiene contención de candados entre la caché y la consulta. Puede ser ruido del equipo (otros procesos, antivirus sobre el `DATA_DIR` nuevo). **Conviene repetir esa corrida antes de decidir.**
+- **I3. Escalones intermedios en `carga_resumen.md`.** `analyze_load.py` agrupa por número de usuarios, así que los instantes de la rampa (20, 35, 45, 60, 70, 80, 90 usuarios) aparecen como filas. Cada uno tiene **una sola muestra** y no es un escalón real: los válidos son 10, 25, 50 y 100, con unas 55 muestras cada uno. No se modificó el script.
+- **I4. Código de salida de locust vacío** en `corridas_log.txt`. Es una limitación de `Start-Process` en PowerShell 5.1. Las 4 corridas terminaron solas en unos 245 s, sin congelarse.
+- **I5. Entorno.** Se midió en Windows y no en el contenedor Linux ni en Render (512 MB, CPU compartida), así que las cifras absolutas pueden diferir. El orden relativo entre configuraciones es lo comparable.
+
+---
+
 ## Pendiente
 
 - [x] Ejecutar el experimento en el equipo (Claude Code) y registrar aquí los resultados (23-oct-2026).
@@ -305,5 +376,6 @@ Ejecutado por Claude Code en Windows 11 con Python 3.12.0, torch 2.14.1 y senten
 - [x] El equipo escribe `evaluation/validation_set.csv` (40 consultas) para la medición final.
 - [x] Decidir la configuración de producción: configuración C (23-oct-2026). Con el modelo `default` no hace falta cambiar el `Dockerfile` ni los requisitos.
 - [ ] Actualizar el reporte: 0.70 → 0.75 y 2.5 → 2.0 en RF05, la Sección 2.3, las Figuras 1 y 3, las Secciones 4.3, 8, 9 y 16 y la Tabla 33.
-- [ ] Fase 3: optimizaciones de desempeño (límite de embeddings simultáneos, precarga del modelo) y nueva prueba de carga por escalones.
+- [x] Fase 3: límite de embeddings simultáneos implementado (desactivado por defecto) y medido con prueba de carga por escalones (23-oct-2026).
+- [ ] Fase 3: el equipo decide el valor de `EMBEDDING_CONCURRENCY` (conviene repetir antes la corrida "Límite 2, con caché", ver I2).
 - [ ] Docker: instalar Docker Desktop o usar como evidencia el job `docker` de GitHub Actions.
