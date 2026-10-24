@@ -1,0 +1,71 @@
+﻿$ ruff check .
+All checks passed!
+
+$ pytest tests/test_unit.py tests/test_integration.py -v
+============================= test session starts =============================
+platform win32 -- Python 3.12.0, pytest-9.1.1, pluggy-1.7.0 -- C:\Users\miche\Downloads\intelligent_chatbot_corregido\intelligent_chatbot\.venv\Scripts\python.exe
+cachedir: .pytest_cache
+rootdir: C:\Users\miche\Downloads\intelligent_chatbot_corregido\intelligent_chatbot
+configfile: pytest.ini
+plugins: anyio-4.15.1, locust-2.47.0
+collecting ... collected 56 items
+
+tests/test_unit.py::test_ut01_blank_message[] PASSED                     [  1%]
+tests/test_unit.py::test_ut01_blank_message[   ] PASSED                  [  3%]
+tests/test_unit.py::test_ut01_blank_message[\n\t ] PASSED                [  5%]
+tests/test_unit.py::test_ut02_malformed_message[aaaaaa] PASSED           [  7%]
+tests/test_unit.py::test_ut02_malformed_message[holaaaaaa] PASSED        [  8%]
+tests/test_unit.py::test_ut02_malformed_message[jaskdhasjkdhasd] PASSED  [ 10%]
+tests/test_unit.py::test_ut02_malformed_message[?!] PASSED               [ 12%]
+tests/test_unit.py::test_ut02_malformed_message[ok] PASSED               [ 14%]
+tests/test_unit.py::test_valid_spanish_is_not_blocked[\xbftienen s\xe1ndwich de pierna?] PASSED [ 16%]
+tests/test_unit.py::test_valid_spanish_is_not_blocked[instrucciones para pagar] PASSED [ 17%]
+tests/test_unit.py::test_valid_spanish_is_not_blocked[construcci\xf3n] PASSED [ 19%]
+tests/test_unit.py::test_valid_spanish_is_not_blocked[\xbfCu\xe1nto cuesta?] PASSED [ 21%]
+tests/test_unit.py::test_valid_spanish_is_not_blocked[hola!!!!] PASSED   [ 23%]
+tests/test_unit.py::test_valid_spanish_is_not_blocked[\xbfHay licuados?] PASSED [ 25%]
+tests/test_unit.py::test_ut04_normalization PASSED                       [ 26%]
+tests/test_unit.py::test_ut05_07_confidence_score[0.0-1.0] PASSED        [ 28%]
+tests/test_unit.py::test_ut05_07_confidence_score[0.75-0.7] PASSED       [ 30%]
+tests/test_unit.py::test_ut05_07_confidence_score[2.5-0.0] PASSED        [ 32%]
+tests/test_unit.py::test_ut05_07_confidence_score[4.0-0.0] PASSED        [ 33%]
+tests/test_unit.py::test_ut08_strategies_share_contract PASSED           [ 35%]
+tests/test_unit.py::test_ut09_observer_attach_detach_notify PASSED       [ 37%]
+tests/test_unit.py::test_observer_failure_does_not_break_notify PASSED   [ 39%]
+tests/test_unit.py::test_ut10_threshold_decision PASSED                  [ 41%]
+tests/test_unit.py::test_semantic_exact_question_is_answered PASSED      [ 42%]
+tests/test_unit.py::test_keyword_fallback_needs_two_matches PASSED       [ 44%]
+tests/test_unit.py::test_out_of_scope_is_not_answered PASSED             [ 46%]
+tests/test_unit.py::test_cache_avoids_repeated_queries PASSED            [ 48%]
+tests/test_unit.py::test_errors_are_raised_and_not_cached PASSED         [ 50%]
+tests/test_unit.py::test_knowledge_base_reload_clears_cache PASSED       [ 51%]
+tests/test_unit.py::test_small_talk PASSED                               [ 53%]
+tests/test_unit.py::test_human_request_detection[Quiero hablar con un operador-True] PASSED [ 55%]
+tests/test_unit.py::test_human_request_detection[\xbfme pasas con un humano?-True] PASSED [ 57%]
+tests/test_unit.py::test_human_request_detection[necesito hablar con una persona-True] PASSED [ 58%]
+tests/test_unit.py::test_human_request_detection[\xbfa qu\xe9 hora abren?-False] PASSED [ 60%]
+tests/test_unit.py::test_rejection_examples_force_escalation PASSED      [ 62%]
+tests/test_unit.py::test_rejection_does_not_block_cafeteria_questions PASSED [ 64%]
+tests/test_unit.py::test_rejection_examples_do_not_count_as_candidates PASSED [ 66%]
+tests/test_unit.py::test_knowledge_base_ids_are_unique_and_complete PASSED [ 67%]
+tests/test_unit.py::test_carnitas_keywords_do_not_steal_antojitos PASSED [ 69%]
+tests/test_integration.py::test_it01_known_question_is_answered PASSED   [ 71%]
+tests/test_integration.py::test_it02_unknown_question_is_escalated PASSED [ 73%]
+tests/test_integration.py::test_it03_interactions_are_logged PASSED      [ 75%]
+tests/test_integration.py::test_it04_operator_resolves_ticket PASSED     [ 76%]
+tests/test_integration.py::test_it05_frontend_shows_service_unavailable PASSED [ 78%]
+tests/test_integration.py::test_it06_place_review PASSED                 [ 80%]
+tests/test_integration.py::test_ut03_too_long_message PASSED             [ 82%]
+tests/test_integration.py::test_blank_and_malformed_return_400 PASSED    [ 83%]
+tests/test_integration.py::test_missing_field_returns_structured_422 PASSED [ 85%]
+tests/test_integration.py::test_greeting_does_not_create_ticket PASSED   [ 87%]
+tests/test_integration.py::test_rf10_user_requests_operator PASSED       [ 89%]
+tests/test_integration.py::test_rf09_response_feedback PASSED            [ 91%]
+tests/test_integration.py::test_rf08_stats PASSED                        [ 92%]
+tests/test_integration.py::test_internal_error_returns_friendly_500 PASSED [ 94%]
+tests/test_integration.py::test_rf03_knowledge_base_crud PASSED          [ 96%]
+tests/test_integration.py::test_kb_seed_version_sync PASSED              [ 98%]
+tests/test_integration.py::test_health PASSED                            [100%]
+
+============================= 56 passed in 11.26s =============================
+

@@ -1,0 +1,52 @@
+Prueba de humo de la API (configuración final C) — 2026-10-23 16:34:36
+Backend: http://127.0.0.1:8000
+
+=== GET /health ===
+GET /health
+Cuerpo: (ninguno)
+HTTP 200  (67 ms)
+{
+  "status": "ok",
+  "knowledge_base_entries": 14,
+  "confidence_threshold": 0.75,
+  "knowledge_base_version": "2026-10-cafeteria-v2",
+  "embedding_model": "default",
+  "rejection_examples": true
+}
+
+=== Pregunta respondible ===
+POST /api/v1/chat
+Cuerpo: {"user_id": "smoke", "user_type": "estudiante", "query": "¿A qué hora abren la cafetería?"}
+HTTP 200  (288 ms)
+{
+  "ticket_id": 1,
+  "query": "¿A qué hora abren la cafetería?",
+  "response": "La cafetería abre de lunes a sábado. De lunes a viernes el servicio es de 7:00 a.m. a 5:00 p.m. y los sábados solo se abre medio día. Las puertas se abren desde las 6:30 a.m., pero la venta empieza a las 7:00 a.m. Los desayunos se sirven hasta las 12:00 p.m.",
+  "routed_to": "bot",
+  "confidence_score": 1.0,
+  "status": "answered",
+  "method": "semantic",
+  "response_time_ms": 257.63
+}
+
+=== Pregunta fuera de alcance ===
+POST /api/v1/chat
+Cuerpo: {"user_id": "smoke", "user_type": "estudiante", "query": "¿Cuánto cuesta la colegiatura?"}
+HTTP 200  (239 ms)
+{
+  "ticket_id": 2,
+  "query": "¿Cuánto cuesta la colegiatura?",
+  "response": "Antojitos: quesadillas $30, sincronizadas $35, tostadas $35, tacos dorados $45, tacos ahogados $50, gringa grande $55 y burrito grande $45. Molletes normales $35 y Molletes Xtreme (frijoles, queso manchego, chilaquiles y milanesa de pollo) $65.",
+  "routed_to": "bot",
+  "confidence_score": 0.7881,
+  "status": "answered",
+  "method": "semantic",
+  "response_time_ms": 231.93
+}
+
+=== Verificaciones ===
+[OK] umbral 0.75
+[OK] rechazo activo
+[OK] '¿A qué hora abren la cafetería?' respondida por el bot
+[FALLA] '¿Cuánto cuesta la colegiatura?' escalada
+Resultado: 3/4

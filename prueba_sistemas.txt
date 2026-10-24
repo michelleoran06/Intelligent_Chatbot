@@ -1,47 +1,113 @@
 ======================================================
      BATERÍA DE PRUEBAS - INTELLIGENT CHATBOT
+     (pruebas de sistema, Sección 15.5)
 ======================================================
 
---- 1. PRUEBAS PARA EL BOT (ALTA CONFIANZA / RESPUESTA AUTOMÁTICA) ---
-Copia y pega estas preguntas en el chat individualmente. El bot debe responder de inmediato:
-
-- ¿cuántos días tengo para que me devuelvan mi dinero?
-- a qué hora abren los fines de semana
-- olvidé mi contraseña y me falla el inicio de sesión
-- ¿tienen envíos rápidos o cuánto tarda en llegar?
-- ¿aceptan tarjeta o se puede con transferencia?
+Antes de empezar: backend, chat y panel en ejecución (ver Manual_del_Proyecto.md).
+Las pruebas automáticas se corren con:
+    pytest tests/test_unit.py tests/test_integration.py -v
+    pytest -m chroma -v
 
 
---- 2. PRUEBAS PARA OPERADOR (BAJA CONFIANZA / ESCALAMIENTO) ---
-Copia y pega estas frases en el chat individualmente. El sistema debe pausar el chat y mandar el ticket al Panel de Operador:
+--- ST-01. EL BOT RESPONDE (preguntas de la base de conocimiento) ---
+Escribe cada pregunta en el chat. El bot debe responder de inmediato y mostrar 👍/👎:
 
-- tuve un problema grave con un empleado de la sucursal y quiero poner una queja
-- ¿venden refacciones para arreglar la pantalla de una laptop?
-- necesito soporte técnico avanzado porque la API de pagos no me responde
-- jaskdhasjkdhasd
+- ¿A qué hora abren la cafetería?
+- ¿Aceptan tarjeta o se puede con transferencia?
+- ¿Cuánto cuestan los chilaquiles con cecina?
+- ¿Qué trae el menú del día?
+- ¿Dónde está la cafetería?
+- ¿Cuánto cuesta la torta de carnitas?
+- ¿Hasta qué hora sirven desayunos?
+
+También deben funcionar los tres botones de "Consultas rápidas" de la barra lateral.
 
 
---- 3. PRUEBAS DE EXCEPCIONES Y MANEJO DE ERRORES ---
-Cómo forzar los errores amigables y probar la robustez del sistema:
+--- ST-02. ESCALAMIENTO AUTOMÁTICO (preguntas fuera de alcance) ---
+El chat debe mostrar "Tu pregunta fue enviada a un operador..." y el ticket debe aparecer en
+el panel de operador (con aviso emergente y sonido):
 
-A) Error 400 (Fail Fast - Entrada vacía)
-   - Acción: Ve al chat de Streamlit, presiona la barra espaciadora 5 veces y dale a enviar.
-   - Resultado esperado: El sistema bloquea el mensaje y lanza la advertencia de que la consulta está en blanco.
+- Tuve un problema con un empleado y quiero poner una queja
+- ¿Venden refacciones para arreglar la pantalla de una laptop?
+- La API de pagos no me responde
+- ¿Cuál es la capital de Francia?
 
-B) Error 422 (Límite de caracteres excedido)
-   - Acción: Copia y pega un texto de más de 500 caracteres (ej. dos párrafos enteros de Wikipedia) en el chat y envíalo.
-   - Resultado esperado: El sistema rechaza la entrada por seguridad y lanza la advertencia de que el mensaje es muy largo.
 
-C) Error 404 (Ticket inexistente)
-   - Acción: Abre una terminal independiente y pega esto:
-     curl http://127.0.0.1:8000/api/v1/ticket/99999
-   - Resultado esperado: La API devuelve un error diciendo que no logró encontrar el ticket en el sistema.
+--- ST-03. EL USUARIO PIDE UN OPERADOR (RF10) ---
+- Opción 1: pulsa "🙋 Hablar con un operador" en la barra lateral.
+- Opción 2: escribe "Quiero hablar con un operador".
+Resultado esperado: se crea un ticket sin importar la confianza.
 
-D) Error 422 (Petición malformada a la API)
-   - Acción: Abre una terminal independiente y pega esto (falta el user_id):
-     curl -X POST "http://127.0.0.1:8000/api/v1/chat" -H "Content-Type: application/json" -d "{\"query\": \"hola\"}"
-   - Resultado esperado: La API devuelve un error estructurado indicando que faltan campos obligatorios.
 
-E) Error 500 (Simulación de caída interna del servidor)
-   - Acción: Abre el archivo nlp_engine.py, cambia temporalmente la línea "distance = distances[0]" por "distance = distances[50]", guarda el archivo y manda un "hola" en el chat.
-   - Resultado esperado: El servidor detecta el fallo interno del código, registra el error exacto en la terminal y le devuelve al usuario un mensaje amigable pidiendo que intente más tarde (sin que el backend crashee). RECUERDA REGRESAR EL CÓDIGO A [0] DESPUÉS DE LA PRUEBA.
+--- ST-04. EL OPERADOR RESPONDE ---
+Con un ticket de ST-02 o ST-03 en espera, en el panel: elige el ticket, escribe la
+respuesta y pulsa "Enviar respuesta y cerrar caso".
+Resultado esperado: la respuesta aparece en el chat como "👨‍💻 Operador: ..." y el ticket sale
+de la cola.
+
+
+--- ST-05. NINGÚN OPERADOR RESPONDE ---
+Provoca un escalamiento y no lo respondas durante 60 segundos.
+Resultado esperado: "Los operadores están ocupados en este momento...". Si después el operador
+responde, la respuesta aparece en el chat la siguiente vez que el usuario interactúe (o al
+pulsar "🔄 Revisar respuesta del operador").
+
+
+--- ST-06. SERVICIO NO DISPONIBLE ---
+Detén el backend (Ctrl+C en su terminal, o "docker compose stop backend") y envía un mensaje.
+Resultado esperado: "El servicio no está disponible en este momento..." sin que la interfaz
+se caiga.
+
+
+--- ST-07. MEMORIA LLENA ---
+Envía preguntas hasta llegar a 15 mensajes en la conversación (unas 8 preguntas).
+Resultado esperado: "Memoria llena. Por favor recarga la página..." y la caja de texto queda
+deshabilitada. Al recargar la página empieza una conversación nueva.
+
+
+--- ST-08. RESEÑA DEL LUGAR (RF11) Y CALIFICACIÓN DE RESPUESTA (RF09) ---
+- Envía una reseña con estrellas y comentario desde la barra lateral: debe verse
+  "¡Gracias por tu opinión!" y aparecer en la pestaña "Reseñas" del panel.
+- Pulsa 👍 o 👎 bajo una respuesta del bot: debe verse "¡Gracias por calificar la respuesta!"
+  y contarse en la pestaña "Estadísticas".
+
+
+--- ST-09. VALIDACIÓN DE ENTRADA (Fail Fast) ---
+A) Mensaje en blanco: escribe solo espacios y envía.
+   Esperado: "Tu mensaje está en blanco. Por favor, escribe una pregunta."
+B) Mensaje repetitivo o sin sentido: "aaaaaaa" o "jaskdhasjkdhasd".
+   Esperado: "¡Ups! Tu mensaje parece estar mal escrito o incompleto..."
+C) Mensaje de más de 500 caracteres (pega dos párrafos de cualquier texto).
+   Esperado: "Tu mensaje es muy largo (máximo 500 caracteres)..."
+D) Palabras válidas que antes se bloqueaban por error ("¿tienen sándwich de pierna?",
+   "instrucciones para pagar") ahora deben llegar al bot.
+
+
+--- ST-10. BASE DE CONOCIMIENTO (RF03) ---
+En la pestaña "📚 Base de conocimiento" del panel:
+1. Crea la entrada "wifi_cafeteria" con la respuesta "La cafetería no cuenta con wifi propio."
+   y la pregunta de ejemplo "¿Tienen wifi en la cafetería?".
+2. Pregunta en el chat "¿Tienen wifi en la cafetería?": el bot debe responder.
+3. Elimina la entrada y repite la pregunta: debe escalarse.
+
+
+--- ERRORES DE LA API (desde una terminal) ---
+Los comandos están escritos para cmd de Windows; en PowerShell usa curl.exe.
+
+E1) Ticket inexistente (404):
+    curl http://127.0.0.1:8000/api/v1/ticket/99999
+    Esperado: {"detail":"No logramos encontrar tu ticket en el sistema."}
+
+E2) Petición malformada (422 estructurado, faltan user_id y user_type):
+    curl -X POST "http://127.0.0.1:8000/api/v1/chat" -H "Content-Type: application/json" -d "{\"query\": \"hola\"}"
+    Esperado: "detail" con el mensaje amigable y "errors" con la lista de campos faltantes.
+
+E3) Error interno controlado (500):
+    Abre vector_store.py y agrega temporalmente como primera línea de la función query():
+        raise RuntimeError("prueba de error 500")
+    Reinicia el backend y envía en el chat "¿Venden pizza?" (no envíes un saludo: los saludos
+    no pasan por el motor de IA).
+    Esperado: "Problema técnico interno. Intenta de nuevo en unos minutos.", el error aparece
+    en la terminal y en la pestaña "⚠️ Errores" del panel, y el backend sigue funcionando.
+    RECUERDA BORRAR ESA LÍNEA DESPUÉS DE LA PRUEBA.
+    (Esta misma prueba está automatizada en tests/test_integration.py::test_internal_error_returns_friendly_500.)

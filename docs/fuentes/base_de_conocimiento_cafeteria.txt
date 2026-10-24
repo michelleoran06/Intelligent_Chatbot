@@ -1,0 +1,38 @@
+Contexto: Horarios de la cafetería. La cafetería abre de lunes a sábado. El horario de servicio de lunes a viernes es de 7:00 am a 5:00 pm, y los sábados solo se abre medio día. Las puertas abren desde las 6:30 am, pero la venta de productos empieza a las 7:00 am.
+
+Contexto: Horario de desayunos. Todos los desayunos (huevos, chilaquiles, enchiladas, sopes, omelettes) se sirven únicamente hasta las 12:00 pm.
+
+Contexto: Especialidad de Viernes y Sábado (Carnitas). Los viernes y sábados hay venta de carnitas. Los tacos cuestan $15 pesos, la torta de carnitas cuesta $30 pesos. Hay un combo de 3 tacos y un agua por $50 pesos. También se vende por kilo, medio kilo o desde $100 pesos.
+
+Pregunta: ¿Qué desayunos tienen y cuánto cuestan?
+Respuesta: Hasta las 12:00 pm tenemos huevos (al gusto, a la mexicana, salchicha, tocino, jamón, rancheros, divorciados), omelette (verduras o jamón con queso), sopes y enchiladas por $55 pesos.
+
+Pregunta: ¿Cuánto cuestan los chilaquiles?
+Respuesta: Los chilaquiles se sirven hasta las 12:00 pm. Los chilaquiles sencillos cuestan $40, con huevo $50. Los chilaquiles con milanesa de pollo o pechuga asada cuestan $65, y con cecina cuestan $75.
+
+Pregunta: ¿Tienen menú del día o comida corrida?
+Respuesta: Sí, el menú del día cuesta $80 pesos e incluye sopa de pasta, arroz blanco, milanesa de pollo asada y gelatina. Si lo pides para llevar, se cobran $20 pesos extra por los recipientes (total $100).
+
+Pregunta: ¿Qué paquetes de comida tienen?
+Respuesta: Tenemos el Paquete 1 (Milanesa de pollo) a $60, Paquete 2 (Pechuga asada) a $60, Paquete 3 (Pechuga rellena de jamón y queso) a $65, Paquete 4 (Filete de pescado a la plancha) a $70, y Paquete 5 (Filete de pescado empanizado) a $70.
+
+Pregunta: ¿Qué paquetes tienen con carne de res o cerdo?
+Respuesta: Tenemos el Paquete 8 (Cecina natural asada) a $80, Paquete 9 (Arrachera a la plancha) a $80, y Paquete 10 (Chorizo a la plancha) a $70.
+
+Pregunta: ¿Cuánto cuesta la pizza?
+Respuesta: La pizza completa cuesta $100 pesos. Si necesitas caja para llevar, son $20 pesos extra. También vendemos rebanadas sueltas (hawaiana, carnes frías o carne molida) a $25 pesos cada una.
+
+Pregunta: ¿Qué antojitos y comida rápida venden?
+Respuesta: Vendemos quesadillas ($30), sincronizadas y tostadas ($35), tacos dorados ($45), tacos ahogados ($50), gringa grande ($55) y burrito grande ($45). 
+
+Pregunta: ¿Cuánto cuestan los molletes?
+Respuesta: Los molletes normales cuestan $35 pesos. Tenemos los Molletes Xtreme (frijoles, queso manchego, chilaquiles y milanesa de pollo) por $65 pesos.
+
+Pregunta: ¿Cuánto cuestan los sándwiches?
+Respuesta: El sándwich de pollo deshebrado o pechuga asada cuesta $30 pesos. El sándwich de pierna sencillo cuesta $45 y el Club Sándwich cuesta $65 pesos.
+
+Pregunta: ¿Qué bebidas tienen?
+Respuesta: Tenemos agua del día por $15 pesos y jugos naturales por $35 pesos.
+
+Pregunta: ¿Qué venden de panadería, dulces o snacks?
+Respuesta: Tenemos mantecas ($27), churritos y galletas de avena ($25), enjambre ($20), obleas naturales ($15), obleas de sabor ($30) y amaranto de chocolate ($15).

@@ -1,0 +1,10 @@
+﻿limite2_hilos200_sin_cache (614 registros, tabla conversation_logs)
+  escal�n  10 usuarios: n= 149  mediana servidor=  1899.3 ms  p95 servidor=  2810.6 ms
+  escal�n  25 usuarios: n= 156  mediana servidor=  7378.5 ms  p95 servidor=  8716.4 ms
+  escal�n  50 usuarios: n= 157  mediana servidor= 16347.5 ms  p95 servidor= 17573.0 ms
+  escal�n 100 usuarios: n= 150  mediana servidor= 28113.5 ms  p95 servidor= 38478.8 ms
+limite2_hilos200_con_cache (5461 registros, tabla conversation_logs)
+  escal�n  10 usuarios: n= 254  mediana servidor=     2.8 ms  p95 servidor=  1804.9 ms
+  escal�n  25 usuarios: n= 748  mediana servidor=     0.1 ms  p95 servidor=     2.0 ms
+  escal�n  50 usuarios: n=1499  mediana servidor=     0.1 ms  p95 servidor=     1.2 ms
+  escal�n 100 usuarios: n=2960  mediana servidor=     0.1 ms  p95 servidor=     0.9 ms

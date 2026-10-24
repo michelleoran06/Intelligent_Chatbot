@@ -1,0 +1,2 @@
+﻿Comando: ruff check .  (ruff 0.15.22, excluye .venv)
+All checks passed!

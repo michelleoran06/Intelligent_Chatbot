@@ -1,131 +1,380 @@
-import re
+"""API del Intelligent Chatbot (capas Edge y Business Logic, Secciones 4.1 y 9).
+
+Flujo de /api/v1/chat:
+1. Validación Fail Fast (pydantic + input_validation) -> HTTP 422 / 400.
+2. Saludos y agradecimientos cortos se responden directamente.
+3. RF10: si el usuario pide un operador, se escala sin consultar al motor de IA.
+4. RF02: el motor de IA recupera la respuesta candidata y su confianza S.
+5. Strategy: S >= umbral -> BotResponseStrategy; si no -> HumanFallbackStrategy (Observer).
+6. RF04: la interacción se registra en la SQL DB y se devuelve la respuesta.
+"""
+import hmac
 import logging
-from fastapi import FastAPI, HTTPException, status, Request
+import time
+from contextlib import asynccontextmanager
+from typing import List, Literal, Optional
+
+from anyio import to_thread
+from fastapi import BackgroundTasks, Depends, FastAPI, Header, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
-from database import save_log, update_ticket, get_ticket, get_escalated_tickets
-from vector_store import seed_knowledge_base
-from patterns import EscalationSubject, OperatorDashboardNotifier, BotResponseStrategy, HumanFallbackStrategy
-from nlp_engine import NLPEngine
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+import config
+import database as db
+from input_validation import is_human_request, normalize_text, small_talk_reply, validate_query_text
+from knowledge_base import DEFAULT_ENTRIES, KB_SEED_VERSION
+from nlp_engine import NLPEngine
+from patterns import (
+    ROUTED_BOT,
+    STATUS_ANSWERED,
+    BotResponseStrategy,
+    ConversationContext,
+    EscalationSubject,
+    HumanFallbackStrategy,
+    OperatorDashboardNotifier,
+    StrategySelector,
+)
+from vector_store import get_store
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger("ChatbotAPI")
 
-app = FastAPI(title="Intelligent Chatbot API", version="1.0.0")
+SERVICE_ERROR_MESSAGE = "Problema técnico interno. Intenta de nuevo en unos minutos."
+TOO_LONG_MESSAGE = (
+    f"Tu mensaje es muy largo (máximo {config.MAX_QUERY_LENGTH} caracteres). "
+    "Por favor, resúmelo un poco e intenta de nuevo."
+)
+INVALID_REQUEST_MESSAGE = "La petición no es válida: faltan campos obligatorios o tienen un formato incorrecto."
 
-@app.exception_handler(RequestValidationError)
-async def validation_exception_handler(request: Request, exc: RequestValidationError):
-    return JSONResponse(
-        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-        content={"detail": "Parece que tu mensaje es muy largo o tiene caracteres no válidos. Por favor, resúmelo un poco e intenta de nuevo."}
-    )
+UserType = Literal["estudiante", "maestro", "administrativo"]
 
+# ------------------------------------------------------------------ composición de componentes
 escalation_subject = EscalationSubject()
-escalation_subject.attach(OperatorDashboardNotifier())
+operator_notifier = OperatorDashboardNotifier()
+escalation_subject.attach(operator_notifier)
 
 bot_strategy = BotResponseStrategy()
 fallback_strategy = HumanFallbackStrategy(escalation_subject)
-nlp_engine = NLPEngine(confidence_threshold=0.65)
+strategy_selector = StrategySelector(bot_strategy, fallback_strategy, config.CONFIDENCE_THRESHOLD)
 
+nlp_engine = NLPEngine(
+    store=get_store(),
+    confidence_threshold=config.CONFIDENCE_THRESHOLD,
+    divisor=config.CONFIDENCE_DIVISOR,
+    keyword_confidence=config.KEYWORD_CONFIDENCE,
+    min_keyword_matches=config.MIN_KEYWORD_MATCHES,
+    n_results=config.SEMANTIC_RESULTS,
+    cache_size=config.NLP_CACHE_SIZE,
+)
+
+
+def _safe_log_error(endpoint: str, message: str) -> None:
+    """Registra un error sin dejar que una falla de la base tumbe la respuesta."""
+    try:
+        db.log_system_error(endpoint, message[:4000])
+    except Exception:
+        logger.exception("No se pudo registrar el error en la base de datos.")
+
+
+def load_knowledge_base() -> int:
+    summary = db.sync_default_kb(DEFAULT_ENTRIES, KB_SEED_VERSION)
+    if summary["previous_version"] != KB_SEED_VERSION:
+        logger.info("Base de conocimiento sincronizada a la versión %s (antes: %s). Nuevas: %s | "
+                    "actualizadas: %s | eliminadas: %s", KB_SEED_VERSION, summary["previous_version"],
+                    summary["inserted"], summary["updated"], summary["removed"])
+    entries = db.list_kb_entries()
+    nlp_engine.store.rebuild(entries)
+    nlp_engine.set_knowledge_base(entries)
+    return len(entries)
+
+
+def refresh_knowledge_base_entry(kb_id: str) -> None:
+    """Propagación SQL DB -> Vector DB en segundo plano (consistencia eventual, Sección 4.4)."""
+    try:
+        entry = db.get_kb_entry(kb_id)
+        if entry is None:
+            nlp_engine.store.delete_entry(kb_id)
+        else:
+            nlp_engine.store.upsert_entry(entry)
+        nlp_engine.set_knowledge_base(db.list_kb_entries())
+        logger.info("Entrada '%s' reindexada.", kb_id)
+    except Exception as exc:
+        logger.exception("Falló la reindexación de la entrada '%s'.", kb_id)
+        _safe_log_error("/api/v1/kb (reindexación)", f"{type(exc).__name__}: {exc}")
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    # Fase 3 (Plan B): tamaño del grupo de hilos que atiende los endpoints síncronos
+    to_thread.current_default_thread_limiter().total_tokens = max(1, config.SERVER_THREADS)
+    total = load_knowledge_base()
+    logger.info("Backend listo: %d entradas en la base de conocimiento.", total)
+    yield
+
+
+app = FastAPI(title="Intelligent Chatbot API", version="2.0.0", lifespan=lifespan)
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    errors = exc.errors()
+    too_long = any(
+        err.get("type") == "string_too_long" and "query" in tuple(err.get("loc", ()))
+        for err in errors
+    )
+    simplified = [
+        {
+            "field": ".".join(str(part) for part in err.get("loc", ()) if part != "body"),
+            "error": str(err.get("msg", "")),
+        }
+        for err in errors
+    ]
+    _safe_log_error(request.url.path, f"Validación: {simplified}")
+    return JSONResponse(
+        status_code=422,
+        content={"detail": TOO_LONG_MESSAGE if too_long else INVALID_REQUEST_MESSAGE, "errors": simplified},
+    )
+
+
+# ------------------------------------------------------------------ modelos de entrada
 class QueryPayload(BaseModel):
     user_id: str = Field(..., min_length=1, max_length=50)
-    query: str = Field(..., min_length=2, max_length=2000)
+    user_type: UserType
+    query: str = Field(..., min_length=1, max_length=config.MAX_QUERY_LENGTH)
+    request_human: bool = False
+
 
 class ResolvePayload(BaseModel):
-    manual_response: str = Field(..., min_length=1)
+    manual_response: str = Field(..., min_length=1, max_length=2000)
 
-@app.on_event("startup")
-def startup_event():
-    seed_knowledge_base()
 
-@app.post("/api/v1/chat", status_code=status.HTTP_200_OK)
+class FeedbackPayload(BaseModel):
+    helpful: bool
+
+
+class ReviewPayload(BaseModel):
+    user_type: UserType
+    rating: int = Field(..., ge=1, le=5)
+    comment: str = Field("", max_length=500)
+
+
+class KnowledgeEntryUpdate(BaseModel):
+    category: str = Field(..., min_length=1, max_length=100)
+    answer: str = Field(..., min_length=1, max_length=2000)
+    questions: List[str] = Field(..., min_length=1)
+    keywords: List[str] = Field(default_factory=list)
+
+
+class KnowledgeEntryCreate(KnowledgeEntryUpdate):
+    id: str = Field(..., pattern=r"^[a-z0-9_]{2,50}$")
+
+
+def require_admin(x_admin_token: Optional[str] = Header(default=None)) -> None:
+    """Si ADMIN_TOKEN está configurado, exige el encabezado X-Admin-Token."""
+    if config.ADMIN_TOKEN and not hmac.compare_digest(x_admin_token or "", config.ADMIN_TOKEN):
+        raise HTTPException(status_code=401, detail="Token de administrador inválido o ausente.")
+
+
+# ------------------------------------------------------------------ endpoints generales
+@app.get("/")
+def root():
+    return {"service": "Intelligent Chatbot API", "docs": "/docs", "health": "/health"}
+
+
+@app.get("/health")
+def health():
+    return {
+        "status": "ok",
+        "knowledge_base_entries": len(nlp_engine.entries),
+        "confidence_threshold": nlp_engine.confidence_threshold,
+        "knowledge_base_version": KB_SEED_VERSION,
+        "embedding_model": config.EMBEDDING_MODEL,
+        "rejection_examples": config.USE_REJECTION_EXAMPLES,
+        "embedding_concurrency": config.EMBEDDING_CONCURRENCY,
+        "nlp_cache_size": config.NLP_CACHE_SIZE,
+        "server_threads": max(1, config.SERVER_THREADS),
+    }
+
+
+# ------------------------------------------------------------------ chat (RF01, RF02, RF04, RF05, RF10)
+@app.post("/api/v1/chat")
 def handle_chat(payload: QueryPayload):
+    started = time.perf_counter()
     try:
-        user_query = payload.query.strip().lower()
-        
-        if not user_query:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Tu mensaje está en blanco. Por favor, escribe una pregunta."
-            )
+        error_message = validate_query_text(payload.query)
+        if error_message:
+            raise HTTPException(status_code=400, detail=error_message)
 
-        
-        letras_repetidas = re.search(r'(.)\1{4,}', user_query)
-        muchas_consonantes = re.search(r'[^aeiou \d]{4,}', user_query) 
-        if letras_repetidas or muchas_consonantes or len(user_query.replace(" ", "")) < 3:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="¡Ups! Tu mensaje parece estar mal escrito o incompleto. ¿Podrías escribirlo de nuevo?"
-            )
+        query = payload.query.strip()
+        normalized = normalize_text(query)
 
-        saludos = ["hola", "buenos dias", "buenas tardes", "buenas noches", "que tal", "hey", "ola", "saludos"]
-        if user_query in saludos:
+        reply = small_talk_reply(normalized)
+        if reply:
             return {
                 "ticket_id": None,
-                "query": user_query,
-                "response": "¡Hola! 👋 Soy el asistente de la cafetería de la facultad. Pregúntame sobre nuestro menú, horarios o métodos de pago.",
-                "routed_to": "bot",
+                "query": query,
+                "response": reply,
+                "routed_to": ROUTED_BOT,
                 "confidence_score": 1.0,
-                "status": "resolved"
+                "status": STATUS_ANSWERED,
+                "method": "small_talk",
             }
 
-        context, confidence = nlp_engine.retrieve_and_score(user_query)
-
-        
-        if confidence < 0.25:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Mmm, parece que me preguntas algo fuera de mi conocimiento sobre la cafetería 🤔. Por favor intenta preguntarlo de otra forma."
-            )
-
-        if confidence >= nlp_engine.confidence_threshold:
-            strategy = bot_strategy
+        requested_human = payload.request_human or is_human_request(normalized)
+        if requested_human:
+            candidate, confidence, kb_id, method = "", 0.0, None, "user_request"
         else:
-            strategy = fallback_strategy
+            retrieval = nlp_engine.retrieve(query)
+            candidate, confidence = retrieval.answer, retrieval.confidence
+            kb_id, method = retrieval.kb_id, retrieval.method
 
-        result = strategy.generate_response(user_query, context)
-
-        ticket_id = save_log(
+        context = ConversationContext(
             user_id=payload.user_id,
-            query=user_query,
-            response=result["message"],
-            score=confidence,
-            routed_to=result["routed_to"]
+            user_type=payload.user_type,
+            query=query,
+            candidate_answer=candidate,
+            confidence=confidence,
+            kb_id=kb_id,
+            requested_human=requested_human,
         )
+        result = strategy_selector.select(confidence, requested_human).resolve(context)
 
+        elapsed_ms = round((time.perf_counter() - started) * 1000, 2)
+        ticket_id = db.save_log(
+            user_id=payload.user_id,
+            user_type=payload.user_type,
+            query=query,
+            response=result.message,
+            score=confidence,
+            routed_to=result.routed_to,
+            method=method,
+            kb_id=kb_id,
+            response_time_ms=elapsed_ms,
+        )
         return {
             "ticket_id": ticket_id,
-            "query": user_query,
-            "response": result["message"],
-            "routed_to": result["routed_to"],
+            "query": query,
+            "response": result.message,
+            "routed_to": result.routed_to,
             "confidence_score": confidence,
-            "status": result["status"]
+            "status": result.status,
+            "method": method,
+            "response_time_ms": elapsed_ms,
         }
-
     except HTTPException:
         raise
     except Exception as exc:
-        logger.error(f"Error critico: {str(exc)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Problema técnico interno. Intenta de nuevo en unos minutos."
-        )
+        logger.exception("Error crítico en /api/v1/chat")
+        _safe_log_error("/api/v1/chat", f"{type(exc).__name__}: {exc}")
+        raise HTTPException(status_code=500, detail=SERVICE_ERROR_MESSAGE)
+
+
+# ------------------------------------------------------------------ tickets (RF06, RF07, RF09)
 @app.get("/api/v1/ticket/{ticket_id}")
 def check_ticket(ticket_id: int):
-    ticket = get_ticket(ticket_id)
+    ticket = db.get_ticket(ticket_id)
     if not ticket:
-        raise HTTPException(
-            status_code=404, 
-            detail="No logramos encontrar tu ticket en el sistema."
-        )
+        raise HTTPException(status_code=404, detail="No logramos encontrar tu ticket en el sistema.")
     return ticket
+
 
 @app.post("/api/v1/ticket/{ticket_id}/resolve")
 def resolve_ticket_endpoint(ticket_id: int, payload: ResolvePayload):
-    update_ticket(ticket_id, payload.manual_response)
+    try:
+        outcome = db.update_ticket(ticket_id, payload.manual_response.strip())
+    except Exception as exc:
+        _safe_log_error(f"/api/v1/ticket/{ticket_id}/resolve", f"{type(exc).__name__}: {exc}")
+        raise HTTPException(status_code=500, detail="Error interno al resolver el ticket.")
+    if outcome == "not_found":
+        raise HTTPException(status_code=404, detail="El ticket no existe.")
+    if outcome == "not_pending":
+        raise HTTPException(status_code=409, detail="El ticket ya fue atendido o no está escalado.")
+    return {"status": "success", "ticket_id": ticket_id}
+
+
+@app.post("/api/v1/ticket/{ticket_id}/feedback")
+def ticket_feedback(ticket_id: int, payload: FeedbackPayload):
+    try:
+        found = db.save_feedback(ticket_id, payload.helpful)
+    except Exception as exc:
+        _safe_log_error(f"/api/v1/ticket/{ticket_id}/feedback", f"{type(exc).__name__}: {exc}")
+        raise HTTPException(status_code=500, detail="Error al guardar la calificación.")
+    if not found:
+        raise HTTPException(status_code=404, detail="El ticket no existe.")
     return {"status": "success"}
+
 
 @app.get("/api/v1/tickets/escalated")
 def fetch_escalated_tickets():
-    return get_escalated_tickets()
+    return db.get_escalated_tickets()
+
+
+# ------------------------------------------------------------------ estadísticas y errores (RF08)
+@app.get("/api/v1/stats")
+def fetch_stats():
+    return db.get_user_stats()
+
+
+@app.get("/api/v1/errors")
+def fetch_errors():
+    return db.get_system_errors()
+
+
+# ------------------------------------------------------------------ reseñas del lugar (RF11)
+@app.post("/api/v1/reviews")
+def add_review(payload: ReviewPayload):
+    try:
+        review_id = db.save_review(payload.user_type, payload.rating, payload.comment.strip())
+    except Exception as exc:
+        _safe_log_error("/api/v1/reviews", f"{type(exc).__name__}: {exc}")
+        raise HTTPException(status_code=500, detail="Error al guardar la reseña.")
+    return {"status": "success", "review_id": review_id}
+
+
+@app.get("/api/v1/reviews")
+def fetch_reviews():
+    return db.get_reviews()
+
+
+# ------------------------------------------------------------------ base de conocimiento (RF03)
+def _clean_entry_payload(payload: KnowledgeEntryUpdate) -> dict:
+    data = payload.model_dump()
+    data["questions"] = [q.strip() for q in data["questions"] if q.strip()]
+    data["keywords"] = [k.strip() for k in data["keywords"] if k.strip()]
+    if not data["questions"]:
+        raise HTTPException(status_code=400, detail="La entrada necesita al menos una pregunta de ejemplo.")
+    return data
+
+
+@app.get("/api/v1/kb")
+def list_knowledge_base():
+    return db.list_kb_entries()
+
+
+@app.post("/api/v1/kb", status_code=201, dependencies=[Depends(require_admin)])
+def create_knowledge_entry(payload: KnowledgeEntryCreate, background_tasks: BackgroundTasks):
+    data = _clean_entry_payload(payload)
+    try:
+        entry = db.create_kb_entry(data)
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+    background_tasks.add_task(refresh_knowledge_base_entry, entry["id"])
+    return entry
+
+
+@app.put("/api/v1/kb/{kb_id}", dependencies=[Depends(require_admin)])
+def update_knowledge_entry(kb_id: str, payload: KnowledgeEntryUpdate, background_tasks: BackgroundTasks):
+    entry = db.update_kb_entry(kb_id, _clean_entry_payload(payload))
+    if entry is None:
+        raise HTTPException(status_code=404, detail="La entrada no existe.")
+    background_tasks.add_task(refresh_knowledge_base_entry, kb_id)
+    return entry
+
+
+@app.delete("/api/v1/kb/{kb_id}", dependencies=[Depends(require_admin)])
+def delete_knowledge_entry(kb_id: str, background_tasks: BackgroundTasks):
+    if not db.delete_kb_entry(kb_id):
+        raise HTTPException(status_code=404, detail="La entrada no existe.")
+    background_tasks.add_task(refresh_knowledge_base_entry, kb_id)
+    return {"status": "success", "id": kb_id}

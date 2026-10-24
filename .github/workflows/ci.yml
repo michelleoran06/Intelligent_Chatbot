@@ -1,0 +1,121 @@
+# Pipeline de CI/CD (Sección 17). Cada etapa es una compuerta: si falla, las siguientes no corren.
+name: CI/CD
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    name: Lint y pruebas
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements*.txt
+
+      - name: Instalar dependencias
+        run: pip install -r requirements-dev.txt
+
+      - name: Revisión estática (ruff)
+        run: ruff check .
+
+      - name: Pruebas unitarias
+        run: pytest tests/test_unit.py -v
+
+      - name: Pruebas de integración
+        run: pytest tests/test_integration.py -v
+
+      - name: Integración con ChromaDB real
+        run: pytest -m chroma -v
+
+      - name: Validación del modelo (reporte)
+        run: python calibrate_confidence.py --no-plot
+
+      - name: Guardar resultados de la validación
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: validacion-modelo
+          path: evaluation/results/
+
+  docker:
+    name: Construcción de imágenes y prueba de humo local
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Construir imágenes
+        run: docker compose build
+
+      - name: Levantar el backend
+        run: docker compose up -d backend
+
+      - name: Esperar a que el backend esté listo
+        run: |
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:8000/health; then exit 0; fi
+            sleep 5
+          done
+          docker compose logs backend
+          exit 1
+
+      - name: Prueba de humo
+        run: |
+          curl -fsS http://localhost:8000/docs > /dev/null
+          curl -fsS -X POST http://localhost:8000/api/v1/chat \
+            -H "Content-Type: application/json" \
+            -d '{"user_id": "ci", "user_type": "estudiante", "query": "¿A qué hora abren la cafetería?"}'
+
+      - name: Apagar contenedores
+        if: always()
+        run: docker compose down -v
+
+  deploy:
+    name: Despliegue en Render
+    needs: [test, docker]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Disparar el deploy hook
+        env:
+          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+        run: |
+          if [ -z "$RENDER_DEPLOY_HOOK_URL" ]; then
+            echo "Secreto RENDER_DEPLOY_HOOK_URL no configurado: se omite el despliegue."
+          else
+            curl -fsS -X POST "$RENDER_DEPLOY_HOOK_URL"
+          fi
+
+  smoke:
+    name: Prueba de humo en producción
+    needs: deploy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verificar el backend desplegado
+        env:
+          BACKEND_PUBLIC_URL: ${{ secrets.BACKEND_PUBLIC_URL }}
+        run: |
+          if [ -z "$BACKEND_PUBLIC_URL" ]; then
+            echo "Secreto BACKEND_PUBLIC_URL no configurado: se omite."
+            exit 0
+          fi
+          # Render tarda en desplegar y en despertar el servicio (cold start)
+          sleep 120
+          for i in $(seq 1 20); do
+            if curl -fsS "$BACKEND_PUBLIC_URL/health"; then
+              curl -fsS -X POST "$BACKEND_PUBLIC_URL/api/v1/chat" \
+                -H "Content-Type: application/json" \
+                -d '{"user_id": "ci_smoke", "user_type": "estudiante", "query": "¿A qué hora abren la cafetería?"}'
+              exit 0
+            fi
+            sleep 15
+          done
+          echo "El backend desplegado no respondió."
+          exit 1

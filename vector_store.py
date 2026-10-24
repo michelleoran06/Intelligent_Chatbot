@@ -1,53 +1,202 @@
-import chromadb
+"""Vector DB del sistema (Polyglot Persistence, Sección 4.4).
 
-client = chromadb.PersistentClient(path="./chroma_data")
-collection = client.get_or_create_collection(name="knowledge_base_cafe")
+ChromaDB con cliente persistente. Cada pregunta de ejemplo y el texto de la respuesta (sin precios)
+se indexan como documentos separados con metadata {"kb_id": ...}; la consulta devuelve la distancia
+mínima por entrada.
 
-def seed_knowledge_base():
+Modelo de embeddings (EMBEDDING_MODEL):
+- "default": all-MiniLM-L6-v2 en ONNX, incluido en chromadb (vectores unitarios, distancia L2^2).
+- otro valor: modelo de sentence-transformers con normalize_embeddings=True. Así los vectores
+  también son unitarios y la distancia sigue en el rango 0-4, de modo que la fórmula
+  S = 1 - d / divisor conserva su significado (Sección 8).
+
+Ejemplos de rechazo: si están activos, se indexan con kb_id = REJECTION_ID (ver nlp_engine.py).
+
+chromadb se importa de forma diferida para que el resto del sistema y las pruebas unitarias no
+dependan de él.
+"""
+import logging
+import os
+import re
+import threading
+from typing import Iterable, List, Optional, Tuple
+
+import config
+from input_validation import normalize_text
+from knowledge_base import REJECTION_EXAMPLES, REJECTION_ID
+
+logger = logging.getLogger("VectorStore")
+
+_PRICE = re.compile(r"\$\s?\d+")
+
+
+def documents_for_entry(entry: dict) -> Tuple[List[str], List[str], List[dict]]:
+    ids, documents, metadatas = [], [], []
+    for index, question in enumerate(entry.get("questions", [])):
+        text = normalize_text(question)
+        if text:
+            ids.append(f"{entry['id']}::q{index}")
+            documents.append(text)
+            metadatas.append({"kb_id": entry["id"]})
+    answer_text = normalize_text(_PRICE.sub(" ", entry.get("answer", "")))
+    if answer_text:
+        ids.append(f"{entry['id']}::answer")
+        documents.append(answer_text)
+        metadatas.append({"kb_id": entry["id"]})
+    return ids, documents, metadatas
+
+
+def documents_for_rejection(examples: Iterable[str]) -> Tuple[List[str], List[str], List[dict]]:
+    ids, documents, metadatas = [], [], []
+    for index, example in enumerate(examples):
+        text = normalize_text(example)
+        if text:
+            ids.append(f"{REJECTION_ID}::{index}")
+            documents.append(text)
+            metadatas.append({"kb_id": REJECTION_ID})
+    return ids, documents, metadatas
+
+
+def make_embedding_function(model_name: str):
+    """None = función por defecto de chromadb; otro nombre = sentence-transformers normalizado."""
+    if not model_name or model_name == "default":
+        return None
     try:
-        existing_data = collection.get()
-        if existing_data and existing_data['ids']:
-            collection.delete(ids=existing_data['ids'])
-    except Exception:
-        pass
+        from chromadb.utils.embedding_functions import SentenceTransformerEmbeddingFunction
+    except ImportError as exc:  # pragma: no cover - depende del entorno
+        raise RuntimeError(
+            f"EMBEDDING_MODEL='{model_name}' requiere sentence-transformers "
+            "(pip install -r requirements-experiment.txt)."
+        ) from exc
+    return SentenceTransformerEmbeddingFunction(model_name=model_name, normalize_embeddings=True)
 
-    documents = [
-        "a que hora abren la cafeteria a que hora cierran horarios servicio desde que hora estan que dias abren sabado temprano",
-        "cuales son los metodos de pago aceptan tarjeta efectivo transferencia puedo pagar con terminal",
-        "donde esta la cafeteria ubicacion como llego en que edificio estan",
-        "que desayunos venden menu de la mañana huevos chilaquiles omelette enchiladas sopes comida alimentos",
-        "tienen antojitos quesadillas molletes tostadas tacos ahogados dorados gringa burrito comida alimentos menu",
-        "que tipos de chilaquiles tienen con que vienen cecina pollo huevo sencillos comida alimentos menu",
-        "venden sandwiches o hamburguesas pechuga pierna club comida alimentos menu",
-        "que paquetes de comida tienen comidas completas filete cecina arrachera pechuga milanesa alimentos menu",
-        "venden pizza que sabores de pizza hawaiana carnes frias molida entera rebanada menu",
-        "que bebidas tienen para tomar jugos aguas licuados sed",
-        "tienen postres dulces galletas obleas churritos amaranto enjambre",
-        "tienen menu del dia comida corrida que incluye precio comida alimentos que hay de comer hoy menu general que venden de comer"
-    ]
-    
-    metadatas = [
-        {"respuesta": "La cafetería está abierta de lunes a sábado de 7:00 AM a 5:00 PM. (Abrimos puertas 6:30 AM, pero el servicio empieza a las 7:00 AM)."},
-        {"respuesta": "Aceptamos pagos en efectivo, tarjetas de débito/crédito y transferencias."},
-        {"respuesta": "Estamos ubicados en la planta baja del edificio principal de la Facultad de Ingeniería."},
-        {"respuesta": "De desayuno tenemos: Huevos al gusto, a la mexicana, con salchicha/tocino/jamón, rancheros, divorciados ($55). Chilaquiles, Enchiladas, Sopes ($55). Omelette de verduras o jamón con queso ($55)."},
-        {"respuesta": "Antojitos: Quesadillas ($30-$35), Molletes sencillos ($35), Molletes Xtreme ($65), Tostadas ($35), Tacos dorados ($45), Tacos ahogados ($50), Gringa ($55), Burrito ($45)."},
-        {"respuesta": "Tenemos chilaquiles con cecina ($75), con milanesa o pechuga asada ($65), con huevo ($50) o sencillos ($40)."},
-        {"respuesta": "Sándwiches de pollo o pechuga asada ($30), club ($65), pierna ($45). También tenemos hamburguesa doble y hawaiana."},
-        {"respuesta": "Paquetes (comidas): Milanesa ($60), Pechuga asada ($60), Pechuga rellena ($65), Filete de pescado ($70), Arrachera ($80), Cecina natural/adobada ($80), Chorizo ($70)."},
-        {"respuesta": "Vendemos pizzas por rebanada ($25) o completas ($100). Sabores: Hawaiana, Carnes frías, Carne molida, Pastor, Queso, Champiñón. (Caja para llevar $20)."},
-        {"respuesta": "Para beber tenemos Agua del día ($15), Jugo natural ($35) y Licuados."},
-        {"respuesta": "Postres y panadería: Mantecas ($27), Churritos ($25), Enjambre ($20), Galletas de avena ($25), Obleas ($15-$30), Amaranto de chocolate ($15)."},
-        {"respuesta": "El menú del día cuesta $80 e incluye: Sopa de pasta, Arroz blanco, Guisado (ej. milanesa de pollo asada) y Gelatina. (Para llevar +$20)."}
-    ]
-    
-    ids = [f"caf_{i}" for i in range(1, 13)]
-    
-    collection.add(
-        documents=documents,
-        metadatas=metadatas,
-        ids=ids
-    )
 
-if __name__ == "__main__":
-    seed_knowledge_base()
+class ChromaVectorStore:
+    def __init__(self, path: Optional[str] = None, collection_name: Optional[str] = None,
+                 persistent: bool = True, embedding_model: Optional[str] = None,
+                 rejection_examples: Optional[Iterable[str]] = None,
+                 embedding_concurrency: Optional[int] = None):
+        self.path = path or config.CHROMA_PATH
+        self.collection_name = collection_name or config.CHROMA_COLLECTION
+        self.persistent = persistent
+        self.embedding_model = embedding_model or config.EMBEDDING_MODEL
+        if rejection_examples is None:
+            rejection_examples = REJECTION_EXAMPLES if config.USE_REJECTION_EXAMPLES else []
+        self.rejection_examples = list(rejection_examples)
+        self._embedding_function = None
+        self._client = None
+        self._collection = None
+        self._write_lock = threading.RLock()
+        # Fase 3: limita cuántas consultas calculan su embedding a la vez. Sin límite, decenas de
+        # hilos compiten por la CPU y todas las respuestas se vuelven lentas al mismo tiempo.
+        limit = config.EMBEDDING_CONCURRENCY if embedding_concurrency is None else embedding_concurrency
+        self.embedding_concurrency = max(0, int(limit))
+        self._query_slots = threading.BoundedSemaphore(self.embedding_concurrency) if self.embedding_concurrency else None
+
+    def _get_client(self):
+        if self._client is None:
+            import chromadb
+
+            if self.persistent:
+                os.makedirs(self.path, exist_ok=True)
+                self._client = chromadb.PersistentClient(path=self.path)
+            else:
+                self._client = chromadb.EphemeralClient()
+        return self._client
+
+    def _collection_kwargs(self) -> dict:
+        if self._embedding_function is None:
+            self._embedding_function = make_embedding_function(self.embedding_model)
+        kwargs = {"name": self.collection_name}
+        if self._embedding_function is not None:
+            kwargs["embedding_function"] = self._embedding_function
+        return kwargs
+
+    def _get_collection(self):
+        if self._collection is None:
+            self._collection = self._get_client().get_or_create_collection(**self._collection_kwargs())
+        return self._collection
+
+    def rebuild(self, entries: Iterable[dict]) -> int:
+        """Reconstruye el índice completo a partir de la SQL DB (fuente de verdad)."""
+        with self._write_lock:
+            client = self._get_client()
+            try:
+                client.delete_collection(self.collection_name)
+            except Exception:  # la colección todavía no existía
+                pass
+            self._collection = client.get_or_create_collection(**self._collection_kwargs())
+            ids, documents, metadatas = documents_for_rejection(self.rejection_examples)
+            for entry in entries:
+                entry_ids, entry_docs, entry_meta = documents_for_entry(entry)
+                ids.extend(entry_ids)
+                documents.extend(entry_docs)
+                metadatas.extend(entry_meta)
+            if ids:
+                self._collection.add(ids=ids, documents=documents, metadatas=metadatas)
+            logger.info("Índice vectorial reconstruido: %d documentos (modelo=%s, rechazo=%d ejemplos).",
+                        len(ids), self.embedding_model, len(self.rejection_examples))
+            return len(ids)
+
+    def upsert_entry(self, entry: dict) -> None:
+        with self._write_lock:
+            collection = self._get_collection()
+            collection.delete(where={"kb_id": entry["id"]})
+            ids, documents, metadatas = documents_for_entry(entry)
+            if ids:
+                collection.add(ids=ids, documents=documents, metadatas=metadatas)
+
+    def delete_entry(self, kb_id: str) -> None:
+        with self._write_lock:
+            self._get_collection().delete(where={"kb_id": kb_id})
+
+    @staticmethod
+    def _run_query(collection, text: str, n_results: int):
+        return collection.query(query_texts=[text], n_results=n_results, include=["metadatas", "distances"])
+
+    def count(self) -> int:
+        return self._get_collection().count()
+
+    def query(self, text: str, n_results: int = 20) -> List[Tuple[str, float]]:
+        """Devuelve [(kb_id, distancia_mínima)] ordenado de la más cercana a la más lejana."""
+        if not text:
+            return []
+        collection = self._get_collection()
+        total = collection.count()
+        if total == 0:
+            return []
+        if self._query_slots is None:
+            result = self._run_query(collection, text, min(n_results, total))
+        else:
+            with self._query_slots:
+                result = self._run_query(collection, text, min(n_results, total))
+        metadatas = (result.get("metadatas") or [[]])[0] or []
+        distances = (result.get("distances") or [[]])[0] or []
+        best = {}
+        for metadata, distance in zip(metadatas, distances):
+            kb_id = (metadata or {}).get("kb_id")
+            if kb_id is None:
+                continue
+            if kb_id not in best or distance < best[kb_id]:
+                best[kb_id] = float(distance)
+        return sorted(best.items(), key=lambda item: item[1])
+
+
+_store = None
+_store_lock = threading.Lock()
+
+
+def get_store():
+    """Devuelve el vector store compartido (se crea la primera vez)."""
+    global _store
+    with _store_lock:
+        if _store is None:
+            _store = ChromaVectorStore()
+        return _store
+
+
+def set_store(store) -> None:
+    """Permite reemplazar el vector store (por ejemplo, por uno falso en las pruebas)."""
+    global _store
+    with _store_lock:
+        _store = store

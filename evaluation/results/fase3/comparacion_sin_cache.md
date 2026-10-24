@@ -1,0 +1,30 @@
+# Resumen de pruebas de carga
+
+Latencias en segundos. RNF01: p95 < 2.5 s. Percentiles aproximados a partir de las ventanas de Locust, descartando la rampa de cada escalón.
+
+## Sin límite
+
+| Usuarios | Throughput (req/s) | p50 (s) | p95 (s) | Errores | ¿Cumple RNF01? |
+|---|---|---|---|---|---|
+| 10 | 1.71 | 3.800 | 7.600 | 0.00 % | no |
+| 25 | 1.24 | 4.200 | 19.000 | 0.00 % | no |
+| 50 | 1.78 | 12.000 | 28.000 | 7.89 % | no |
+| 100 | 0.32 | 15.000 | 45.000 | 3.80 % | no |
+
+## Límite 2
+
+| Usuarios | Throughput (req/s) | p50 (s) | p95 (s) | Errores | ¿Cumple RNF01? |
+|---|---|---|---|---|---|
+| 10 | 2.43 | 1.900 | 3.200 | 0.00 % | no |
+| 25 | 1.79 | 2.400 | 13.000 | 0.00 % | no |
+| 50 | 1.83 | 5.900 | 25.000 | 0.00 % | no |
+| 100 | 1.82 | 12.000 | 29.000 | 0.00 % | no |
+
+## Límite 2 + 200 hilos
+
+| Usuarios | Throughput (req/s) | p50 (s) | p95 (s) | Errores | ¿Cumple RNF01? |
+|---|---|---|---|---|---|
+| 10 | 2.44 | 2.000 | 3.300 | 0.00 % | no |
+| 25 | 2.60 | 2.500 | 7.800 | 0.00 % | no |
+| 50 | 2.65 | 7.200 | 17.000 | 0.00 % | no |
+| 100 | 2.50 | 8.000 | 28.000 | 0.00 % | no |

@@ -1,0 +1,69 @@
+﻿Conjunto de prueba: 120 consultas (evaluation\test_set.csv)
+Construyendo el índice vectorial (la primera vez se descarga el modelo)...
+
+Matriz de confusión (umbral 0.70, divisor 2.5) — Tabla 19
+                               Esperado: respondible    Esperado: ESCALATE
+Sistema responde (S>=0.70)                   TP = 75               FP = 22
+Sistema escala (S<0.70)                       FN = 4               TN = 19
+
+Métricas de validación — Tabla 20
+  Exactitud              0.783
+  Precisión              0.773
+  Recall                 0.949
+  F1-score               0.852
+  Tasa de escalamiento   0.192
+  Hit rate @1            0.897
+  Hit rate @3            0.977
+
+Casos fallidos para el análisis de errores (Sección 16.5): 26
+  [ambiguous]
+    FN | S=0.525 | semantic | esperado=menu_general  | predicho=paquetes      | precios
+    FP | S=0.717 | semantic | esperado=menu_general  | predicho=paquetes      | comida
+    FN | S=0.669 | semantic | esperado=pizzas        | predicho=pizzas        | pizza
+    FP | S=0.788 | semantic | esperado=horarios      | predicho=pagos         | horario y formas de pago
+    FP | S=0.860 | semantic | esperado=ESCALATE      | predicho=antojitos     | ¿cuánto cuesta?
+    FP | S=0.800 | semantic | esperado=menu_general  | predicho=desayunos     | desayuno y comida, ¿qué hay?
+    FP | S=0.821 | semantic | esperado=horarios      | predicho=pagos         | ¿Abren temprano y aceptan tarjeta?
+    FP | S=0.758 | semantic | esperado=ESCALATE      | predicho=sandwiches    | ¿Tienen algo barato?
+  [informal]
+    FP | S=0.733 | semantic | esperado=horarios      | predicho=ubicacion     | orario de la cafe
+    FP | S=0.735 | semantic | esperado=antojitos     | predicho=sandwiches    | kesadillas cuanto
+    FN | S=0.560 | semantic | esperado=chilaquiles   | predicho=chilaquiles   | chilakiles con cesina
+    FN | S=0.693 | semantic | esperado=bebidas       | predicho=bebidas       | hay agua de sabor
+  [out_of_scope]
+    FP | S=0.715 | semantic | esperado=ESCALATE      | predicho=pagos         | ¿Cuándo son los exámenes finales?
+    FP | S=0.750 | keyword  | esperado=ESCALATE      | predicho=horarios      | ¿A qué hora abre la biblioteca?
+    FP | S=0.860 | semantic | esperado=ESCALATE      | predicho=pagos         | ¿Aceptan tarjeta en la papelería?
+    FP | S=0.831 | semantic | esperado=ESCALATE      | predicho=antojitos     | ¿Cuánto cuesta la colegiatura?
+    FP | S=0.711 | semantic | esperado=ESCALATE      | predicho=ubicacion     | ¿En qué edificio está la dirección de la facultad?
+    FP | S=0.802 | semantic | esperado=ESCALATE      | predicho=ubicacion     | Perdí mi cartera en la cafetería
+    FP | S=0.790 | semantic | esperado=ESCALATE      | predicho=paquetes      | ¿Cuánto cuesta el examen de inglés?
+    FP | S=0.764 | semantic | esperado=ESCALATE      | predicho=antojitos     | ¿Venden cigarros?
+    FP | S=0.746 | semantic | esperado=ESCALATE      | predicho=menu_general  | ¿Venden café de grano para llevar a casa?
+    FP | S=0.713 | semantic | esperado=ESCALATE      | predicho=menu_del_dia  | La comida me cayó mal, ¿a quién le reporto?
+    FP | S=0.767 | semantic | esperado=ESCALATE      | predicho=pizzas        | ¿Cuántas calorías tiene la pizza?
+    FP | S=0.802 | semantic | esperado=ESCALATE      | predicho=pagos         | ¿Puedo pagar la inscripción con tarjeta?
+  [paraphrase]
+    FP | S=0.822 | semantic | esperado=desayunos     | predicho=horarios      | ¿Qué puedo desayunar en la mañana?
+    FP | S=0.769 | semantic | esperado=antojitos     | predicho=desayunos     | ¿Tienen molletes o tostadas?
+
+Barrido del umbral (divisor 2.5) — Tabla 21
+   Umbral  Precisión   Recall      F1  Escalamiento
+     0.60      0.658    0.975   0.786         0.025
+     0.65      0.706    0.975   0.819         0.092
+     0.70      0.773    0.949   0.852         0.192
+     0.75      0.824    0.854   0.838         0.292
+     0.80      0.894    0.694   0.781         0.450
+
+Barrido del divisor (umbral 0.70) — Tabla 22
+  Divisor  d aceptada <=  Precisión   Recall      F1
+      2.0           0.60      0.833    0.854   0.843
+      2.5           0.75      0.773    0.949   0.852
+      3.0           0.90      0.700    0.975   0.815
+
+Selección: mayor recall con precisión >= 0.90
+  Recomendado: umbral 0.80, divisor 2.0 (precisión 0.962, recall 0.575, F1 0.719)
+  Si se adopta, hay que cambiarlo en config.py, los requisitos, los diagramas y el documento.
+Gráfica guardada en evaluation\results\precision_recall_threshold.png
+
+Resultados guardados en evaluation\results/

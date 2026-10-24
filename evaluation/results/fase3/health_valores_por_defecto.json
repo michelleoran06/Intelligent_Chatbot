@@ -1,0 +1,1 @@
+{"status":"ok","knowledge_base_entries":14,"confidence_threshold":0.75,"knowledge_base_version":"2026-10-cafeteria-v2","embedding_model":"default","rejection_examples":true,"embedding_concurrency":2,"nlp_cache_size":256,"server_threads":200}

@@ -1,0 +1,3 @@
+# Solo para el experimento de calidad (experiment_quality.py). No se usa en producción ni en Docker.
+-r requirements-dev.txt
+sentence-transformers>=3.0

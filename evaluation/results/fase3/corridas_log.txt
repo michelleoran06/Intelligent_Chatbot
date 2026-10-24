@@ -1,0 +1,27 @@
+﻿Pruebas de carga Fase 3 - inicio 2026-10-23 18:18:37
+
+=== sin_limite_sin_cache - 18:18:37 ===
+DATA_DIR=C:\Users\miche\AppData\Local\Temp\claude\c--Users-miche-Downloads-intelligent-chatbot-corregido-intelligent-chatbot\edb31121-d157-44fd-ae85-9e93aaec36e4\scratchpad\data_sin_limite_sin_cache_181837 | EMBEDDING_CONCURRENCY=0 | NLP_CACHE_SIZE=0
+/health: {"status":"ok","knowledge_base_entries":14,"confidence_threshold":0.75,"knowledge_base_version":"2026-10-cafeteria-v2","embedding_model":"default","rejection_examples":true,"embedding_concurrency":0,"nlp_cache_size":0}
+locust terminÃ³ en 250 s, cÃ³digo 
+backend detenido: True
+
+=== limite2_sin_cache - 18:23:01 ===
+DATA_DIR=C:\Users\miche\AppData\Local\Temp\claude\c--Users-miche-Downloads-intelligent-chatbot-corregido-intelligent-chatbot\edb31121-d157-44fd-ae85-9e93aaec36e4\scratchpad\data_limite2_sin_cache_182301 | EMBEDDING_CONCURRENCY=2 | NLP_CACHE_SIZE=0
+/health: {"status":"ok","knowledge_base_entries":14,"confidence_threshold":0.75,"knowledge_base_version":"2026-10-cafeteria-v2","embedding_model":"default","rejection_examples":true,"embedding_concurrency":2,"nlp_cache_size":0}
+locust terminÃ³ en 243 s, cÃ³digo 
+backend detenido: True
+
+=== sin_limite_con_cache - 18:27:18 ===
+DATA_DIR=C:\Users\miche\AppData\Local\Temp\claude\c--Users-miche-Downloads-intelligent-chatbot-corregido-intelligent-chatbot\edb31121-d157-44fd-ae85-9e93aaec36e4\scratchpad\data_sin_limite_con_cache_182718 | EMBEDDING_CONCURRENCY=0 | NLP_CACHE_SIZE=
+/health: {"status":"ok","knowledge_base_entries":14,"confidence_threshold":0.75,"knowledge_base_version":"2026-10-cafeteria-v2","embedding_model":"default","rejection_examples":true,"embedding_concurrency":0,"nlp_cache_size":256}
+locust terminÃ³ en 245 s, cÃ³digo 
+backend detenido: True
+
+=== limite2_con_cache - 18:31:40 ===
+DATA_DIR=C:\Users\miche\AppData\Local\Temp\claude\c--Users-miche-Downloads-intelligent-chatbot-corregido-intelligent-chatbot\edb31121-d157-44fd-ae85-9e93aaec36e4\scratchpad\data_limite2_con_cache_183140 | EMBEDDING_CONCURRENCY=2 | NLP_CACHE_SIZE=
+/health: {"status":"ok","knowledge_base_entries":14,"confidence_threshold":0.75,"knowledge_base_version":"2026-10-cafeteria-v2","embedding_model":"default","rejection_examples":true,"embedding_concurrency":2,"nlp_cache_size":256}
+locust terminÃ³ en 245 s, cÃ³digo 
+backend detenido: True
+
+Fin 2026-10-23 18:36:07

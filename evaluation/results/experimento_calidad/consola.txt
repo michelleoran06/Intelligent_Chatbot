@@ -1,0 +1,32 @@
+
+=== Configuración A: modelo=default | rechazo=no ===
+
+=== Configuración B: modelo=paraphrase-multilingual-MiniLM-L12-v2 | rechazo=no ===
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+C:\Users\miche\Downloads\intelligent_chatbot_corregido\intelligent_chatbot\.venv\Lib\site-packages\huggingface_hub\file_download.py:149: UserWarning: `huggingface_hub` cache-system uses symlinks by default to efficiently store duplicated files but your machine does not support them in C:\Users\miche\.cache\huggingface\hub\models--sentence-transformers--paraphrase-multilingual-MiniLM-L12-v2. Caching files will still work but in a degraded version that might require more space on your disk. This warning can be disabled by setting the `HF_HUB_DISABLE_SYMLINKS_WARNING` environment variable. For more details, see https://huggingface.co/docs/huggingface_hub/how-to-cache#limitations.
+To support symlinks on Windows, you either need to activate Developer Mode or to run Python as an administrator. In order to activate developer mode, see this article: https://docs.microsoft.com/en-us/windows/apps/get-started/enable-your-device-for-development
+  warnings.warn(message)
+C:\Users\miche\Downloads\intelligent_chatbot_corregido\intelligent_chatbot\.venv\Lib\site-packages\huggingface_hub\file_download.py:149: UserWarning: `huggingface_hub` cache-system uses symlinks by default to efficiently store duplicated files but your machine does not support them in C:\Users\miche\.cache\huggingface\hub. Caching files will still work but in a degraded version that might require more space on your disk. This warning can be disabled by setting the `HF_HUB_DISABLE_SYMLINKS_WARNING` environment variable. For more details, see https://huggingface.co/docs/huggingface_hub/how-to-cache#limitations.
+To support symlinks on Windows, you either need to activate Developer Mode or to run Python as an administrator. In order to activate developer mode, see this article: https://docs.microsoft.com/en-us/windows/apps/get-started/enable-your-device-for-development
+  warnings.warn(message)
+Loading weights:   0%|          | 0/199 [00:00<?, ?it/s]Loading weights: 100%|██████████| 199/199 [00:00<00:00, 2544.85it/s]
+
+=== Configuración C: modelo=default | rechazo=sí ===
+
+=== Configuración D: modelo=paraphrase-multilingual-MiniLM-L12-v2 | rechazo=sí ===
+Loading weights:   0%|          | 0/199 [00:00<?, ?it/s]Loading weights: 100%|██████████| 199/199 [00:00<00:00, 2256.45it/s]
+
+# Experimento de calidad del componente de IA
+
+Conjunto: `evaluation\test_set.csv` | Precisión objetivo: 0.90
+
+## Con la configuración vigente (umbral 0.70, divisor 2.5)
+
+| Config. | Modelo | Rechazo | TP | FP | FN | TN | Exactitud | Precisión | Recall | F1 | Escalamiento | Hit@1 | Hit@3 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| A | default | no | 74 | 24 | 4 | 18 | 0.767 | 0.755 | 0.949 | 0.841 | 0.183 | 0.885 | 0.954 |
+| B | paraphrase-multilingual-MiniLM-L12-v2 | no | 79 | 41 | 0 | 0 | 0.658 | 0.658 | 1.000 | 0.794 | 0.000 | 0.908 | 0.943 |
+| C | default | sí | 74 | 21 | 4 | 21 | 0.792 | 0.779 | 0.949 | 0.856 | 0.208 | 0.885 | 0.954 |
+| D | paraphrase-multilingual-MiniLM-L12-v2 | sí | 79 | 23 | 0 | 18 | 0.808 | 0.774 | 1.000 | 0.873 | 0.150 | 0.908 | 0.943 |
+
+Reporte completo: evaluation\results\experimento_calidad\RESULTADOS_EXPERIMENTO.md
