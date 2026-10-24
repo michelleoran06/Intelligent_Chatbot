@@ -365,7 +365,7 @@ Cada celda muestra throughput · p50 · p95 · errores. La única celda que cump
 - **Efecto del límite de 2:**
   - **Sin caché, mejora el p95:** de 7.6 a 3.2 s con 10 usuarios, de 19 a 13 s con 25, de 28 a 25 s con 50 y de 45 a 29 s con 100. Además, elimina los errores `HTTP 0`.
   - **Con caché, lo empeora:** con 100 usuarios, el p95 pasa de 0.115 s a 27 s. Los hilos del servidor quedan ocupados esperando turno en el semáforo y bloquean también las respuestas que ya están en caché, aunque esas no necesitan calcular un embedding.
-- **Decisión:** **`EMBEDDING_CONCURRENCY=0` en producción** (sin límite).
+- **Decisión (reemplazada por la "Decisión final de la Fase 3", que adopta el Plan B):** **`EMBEDDING_CONCURRENCY=0` en producción** (sin límite).
   - Es el valor por defecto de `config.py`.
   - `docker-compose.yml` no define la variable, así que también usa 0.
 - **Trabajo futuro:** separar la caché del cálculo de embeddings. Las consultas en caché deberían responderse sin ocupar un hilo que espera turno; por ejemplo, con un grupo de hilos dedicado al cálculo. Así el límite podría ayudar sin bloquear la caché.
@@ -436,7 +436,59 @@ Cada celda muestra throughput · p50 · p95 · errores. La única celda que cump
    - **I5:** se midió en Windows y no en Render.
    - **Memoria:** 200 hilos significan más memoria por hilo y más conexiones abiertas a la vez. Conviene medir la memoria (`memory_test.py` o el RSS en Render) antes de adoptarlo en el plan de 512 MB.
    - **I2 (sin explicar):** el p50 de 9 s de "Límite 2, con caché" con 10 usuarios no se explica por falta de hilos, porque 10 usuarios no agotan 40. Sigue siendo probablemente ruido de esa corrida.
-4. **Opción para el equipo:** `EMBEDDING_CONCURRENCY=2` con `SERVER_THREADS=200`, después de verificar la memoria. **Mientras tanto, la producción sigue con `EMBEDDING_CONCURRENCY=0` y `SERVER_THREADS=40`.**
+4. **Opción para el equipo:** `EMBEDDING_CONCURRENCY=2` con `SERVER_THREADS=200`, después de verificar la memoria. **Mientras tanto, la producción sigue con `EMBEDDING_CONCURRENCY=0` y `SERVER_THREADS=40`.** (Superado: ver la decisión final.)
+
+### Decisión final de la Fase 3 (23-oct-2026)
+
+**Decisión:** se adopta el **Plan B**, con `EMBEDDING_CONCURRENCY=2` y `SERVER_THREADS=200` como valores por defecto. El criterio del equipo era un pico de memoria menor a 450 MB, que deja margen sobre los 512 MB de Render, y se cumplió.
+
+**Verificación de memoria** (`evaluation/results/fase3/memoria_planB.csv`, `memoria_planB_salida.txt`):
+- **Condiciones:** backend local con `EMBEDDING_CONCURRENCY=2`, `SERVER_THREADS=200`, caché por defecto y un `DATA_DIR` temporal. Se tomaron 3 lecturas en reposo y luego una cada 10 s durante `locust -u 100 -r 10 -t 60s`.
+- **Herramienta:** RSS con `psutil` sobre el PID del proceso que escucha en el puerto 8000.
+
+| Momento | RSS (MB) | Hilos |
+|---|---|---|
+| Reposo | 165.3 | 98–99 |
+| Carga, 10 s | 307.3 | 184 |
+| Carga, 20 s | 256.2 | 219 |
+| Carga, 30 s | 401.3 | 220 |
+| Carga, 40 s | 310.1 | 215 |
+| Carga, 50 s | 423.1 | 211 |
+| Carga, 60 s | 417.4 | 208 |
+| **Final (pico)** | **426.8** | 208 |
+
+- **Pico: 426.8 MB < 450 MB.** Por eso se adoptaron los valores.
+- **Incidencia de medición:** el primer intento midió 4.4 MB, porque se tomó el PID devuelto por `Start-Process`. En Windows, el `python.exe` del `.venv` es un lanzador que abre el intérprete real como proceso hijo. Se repitió la medición con el PID del proceso que escucha en el puerto 8000 (padre: el lanzador). Solo la segunda medición es válida, y es la que quedó guardada.
+- **Advertencias:**
+  - El margen es de solo **23 MB**.
+  - Con lecturas cada 10 s se pueden perder picos más cortos.
+  - La RSS seguía alta al terminar la carga.
+  - Se midió en Windows, no en el contenedor Linux de Render.
+  - **Conviene vigilar la memoria en Render después del despliegue.** Si se acerca a 512 MB, bajar `SERVER_THREADS` con la variable de entorno, sin cambiar el código.
+
+**Tabla comparativa** (`comparacion_sin_cache.md`, `comparacion_con_cache.md`; p95 en segundos con 10 / 25 / 50 / 100 usuarios; RNF01: p95 < 2.5 s):
+
+| Configuración | p95 sin caché | p95 con caché | ¿Cumple RNF01 con caché? |
+|---|---|---|---|
+| Sin límite, 40 hilos (anterior) | 7.6 / 19 / 28 / 45 (errores 7.89 % con 50 y 3.80 % con 100) | 8.1 / 6.4 / 2.9 / 0.115 | solo con 100 |
+| Límite 2, 40 hilos | 3.2 / 13 / 25 / 29 | 11 / 25 / 27 / 27 | no |
+| **Límite 2, 200 hilos (adoptada)** | 3.3 / 7.8 / 17 / 28 | **2.25 / 1.3 / 0.445 / 0.072** | **sí, en los 4 escalones** |
+
+**Matices obligatorios para el reporte:**
+1. **Sin caché no se cumple RNF01** con ninguna configuración. La capacidad para preguntas nuevas sigue siendo de unas 2–2.5 peticiones/s en una instancia, porque el embedding con ONNX en CPU es el cuello de botella. El Plan B mejora el p95 sin caché con 25 y 50 usuarios, pero con 100 sigue en unos 28 s.
+2. **Con caché, el resultado es optimista:** la prueba usa solo las 120 consultas de `test_set.csv`, que caben en la caché de 256 entradas. El cumplimiento de RNF01 depende de que las preguntas se repitan. Con preguntas variadas, el comportamiento se acercaría al de las corridas sin caché.
+
+**Archivos:**
+- `config.py` (valores por defecto 2 y 200)
+- `docker-compose.yml`
+- `.env.example`
+- `Manual_del_Proyecto.md` (tabla de variables: se agregaron `EMBEDDING_CONCURRENCY` y `SERVER_THREADS`)
+- `CLAUDE.md` (decisiones fijas)
+
+**Verificación:**
+- `ruff check .`: sin avisos.
+- `pytest -v`: **62/62** (`pytest_planB_adoptado.txt`).
+- El backend sin variables de entorno muestra en `/health` `embedding_concurrency: 2` y `server_threads: 200` (`health_valores_por_defecto.json`).
 
 ---
 
@@ -450,5 +502,7 @@ Cada celda muestra throughput · p50 · p95 · errores. La única celda que cump
 - [x] Fase 3: límite de embeddings simultáneos implementado (desactivado por defecto) y medido con prueba de carga por escalones (23-oct-2026).
 - [x] Fase 3: decisión `EMBEDDING_CONCURRENCY=0` en producción (23-oct-2026).
 - [ ] Trabajo futuro: separar la caché del cálculo de embeddings para que el límite no bloquee las respuestas en caché.
-- [ ] Plan B: el equipo decide si adopta `EMBEDDING_CONCURRENCY=2` con `SERVER_THREADS=200`, después de medir la memoria con 200 hilos.
+- [x] Plan B adoptado: `EMBEDDING_CONCURRENCY=2` y `SERVER_THREADS=200`, con un pico de 426.8 MB (23-oct-2026).
+- [ ] Vigilar la memoria del backend en Render después del despliegue (margen de 23 MB en la medición local).
+- [ ] Actualizar el reporte (Secciones 18 y 19, Tabla 31, Figuras 18 y 19) con la configuración y las mediciones de la Fase 3.
 - [ ] Docker: instalar Docker Desktop o usar como evidencia el job `docker` de GitHub Actions.
