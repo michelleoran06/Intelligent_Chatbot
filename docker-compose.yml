@@ -19,6 +19,8 @@ services:
       USE_REJECTION_EXAMPLES: "true"
       EMBEDDING_CONCURRENCY: "2"
       SERVER_THREADS: "200"
+      EMBEDDING_BATCH_SIZE: "16"
+      MALLOC_ARENA_MAX: "2"
       MAX_QUERY_LENGTH: "500"
       ADMIN_TOKEN: ${ADMIN_TOKEN:-}
     volumes:
