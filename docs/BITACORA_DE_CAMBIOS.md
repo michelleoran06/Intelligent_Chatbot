@@ -369,7 +369,7 @@ Cada celda muestra throughput · p50 · p95 · errores. La única celda que cump
   - Es el valor por defecto de `config.py`.
   - `docker-compose.yml` no define la variable, así que también usa 0.
 - **Trabajo futuro:** separar la caché del cálculo de embeddings. Las consultas en caché deberían responderse sin ocupar un hilo que espera turno; por ejemplo, con un grupo de hilos dedicado al cálculo. Así el límite podría ayudar sin bloquear la caché.
-- **Nota de interpretación:** en las corridas con caché, el aumento de usuarios coincide con el llenado de la caché. Solo hay 120 consultas distintas, así que buena parte de la mejora de throughput y latencia en los escalones altos se debe a que la caché ya está llena, no a que el sistema escale. Esas cifras no representan la carga con preguntas variadas.
+- **Nota de interpretación (I6):** en las corridas con caché, el aumento de usuarios coincide con el llenado de la caché. Solo hay 120 consultas distintas, así que buena parte de la mejora de throughput y latencia en los escalones altos se debe a que la caché ya está llena, no a que el sistema escale. Esas cifras no representan la carga con preguntas variadas.
 
 ### Incidencias
 
@@ -378,6 +378,65 @@ Cada celda muestra throughput · p50 · p95 · errores. La única celda que cump
 - **I3. Escalones intermedios en `carga_resumen.md`, resuelto.** La primera versión de `analyze_load.py` agrupaba por número de usuarios, así que los instantes de la rampa (20, 35, 45, 60, 70, 80 y 90 usuarios) aparecían como filas, con **una sola muestra** cada uno. Se reemplazó el script por la versión de `fase3b`, que agrega `--steps` y conserva solo los escalones configurados. El resumen se regeneró con `--steps 10,25,50,100` **sin repetir las pruebas**. Las cifras de los cuatro escalones reales no cambiaron.
 - **I4. Código de salida de locust vacío** en `corridas_log.txt`. Es una limitación de `Start-Process` en PowerShell 5.1. Las 4 corridas terminaron solas en unos 245 s, sin congelarse.
 - **I5. Entorno.** Se midió en Windows y no en el contenedor Linux ni en Render (512 MB, CPU compartida), así que las cifras absolutas pueden diferir. El orden relativo entre configuraciones es lo comparable.
+
+### Plan B: límite de 2 con más hilos en el servidor (23-oct-2026)
+
+**Hipótesis:** el límite de 2 empeoraba las corridas con caché porque los hilos del servidor (40 por defecto, de anyio) se agotaban esperando turno en el semáforo. Con más hilos, las respuestas en caché deberían tener hilo libre aunque haya consultas haciendo cola. **Solo se midió.** Los valores por defecto no cambian: `EMBEDDING_CONCURRENCY=0` y `SERVER_THREADS=40`.
+
+**Cambios:**
+
+| Cambio | Archivo |
+|---|---|
+| En `lifespan`, el grupo de hilos de anyio se ajusta a `SERVER_THREADS`; `/health` muestra `server_threads` (versión de la carpeta `planB`; la diferencia se revisó: solo agrega eso y el `import` de `anyio.to_thread`) | `main.py` |
+| `SERVER_THREADS = _get_int("SERVER_THREADS", 40)` | `config.py` |
+| Se declaran explícitamente `EMBEDDING_CONCURRENCY: "0"` y `SERVER_THREADS: "40"` (valores vigentes) | `docker-compose.yml` |
+
+**Verificación:**
+- `ruff check .`: sin avisos.
+- `pytest -v`: **62/62** (`evaluation/results/fase3/pytest_planB.txt`).
+- Se comprobó que el ajuste se aplica de verdad: con `SERVER_THREADS=200`, el limitador real de anyio queda en 200, y sin la variable queda en 40. Se verificó con `TestClient`, leyendo `to_thread.current_default_thread_limiter().total_tokens`, porque `/health` solo muestra el valor de `config`.
+
+**Corridas:** las mismas condiciones que las anteriores (backend local, un `DATA_DIR` temporal nuevo por corrida, escalones de 10, 25, 50 y 100 usuarios de 60 s cada uno).
+- `limite2_hilos200_sin_cache`: `EMBEDDING_CONCURRENCY=2`, `SERVER_THREADS=200`, `NLP_CACHE_SIZE=0`.
+- `limite2_hilos200_con_cache`: `EMBEDDING_CONCURRENCY=2`, `SERVER_THREADS=200`.
+- `/health` confirmó las variables en las dos (`<corrida>_health.json`, `corridas_planB_log.txt`).
+- Ambas terminaron en unos 244 s, **sin errores**.
+- Evidencia: `comparacion_sin_cache.md` y `comparacion_con_cache.md` (con su `.png`), y `tiempos_servidor_planB.txt`.
+
+**Sin caché** (`comparacion_sin_cache.md`; throughput en req/s · p50 · p95 en s · errores):
+
+| Usuarios | Sin límite | Límite 2 | Límite 2 + 200 hilos |
+|---|---|---|---|
+| 10 | 1.71 · 3.8 · 7.6 · 0 % | 2.43 · 1.9 · 3.2 · 0 % | 2.44 · 2.0 · 3.3 · 0 % |
+| 25 | 1.24 · 4.2 · 19 · 0 % | 1.79 · 2.4 · 13 · 0 % | 2.60 · 2.5 · 7.8 · 0 % |
+| 50 | 1.78 · 12 · 28 · 7.89 % | 1.83 · 5.9 · 25 · 0 % | 2.65 · 7.2 · 17 · 0 % |
+| 100 | 0.32 · 15 · 45 · 3.80 % | 1.82 · 12 · 29 · 0 % | 2.50 · 8.0 · 28 · 0 % |
+
+**Con caché** (`comparacion_con_cache.md`):
+
+| Usuarios | Sin límite | Límite 2 | Límite 2 + 200 hilos |
+|---|---|---|---|
+| 10 | 2.30 · 3.6 · 8.1 · 0 % | 1.03 · 9.0 · 11 · 0 % | 4.04 · 0.805 · **2.25** · 0 % ✔ |
+| 25 | 11.79 · 0.017 · 6.4 · 0 % | 1.75 · 8.7 · 25 · 0 % | 12.49 · 0.008 · **1.3** · 0 % ✔ |
+| 50 | 24.88 · 0.015 · 2.9 · 0 % | 4.98 · 0.18 · 27 · 0 % | 24.79 · 0.005 · **0.445** · 0 % ✔ |
+| 100 | 49.34 · 0.013 · 0.115 · 0 % ✔ | 24.85 · 0.18 · 27 · 0 % | 49.93 · 0.004 · **0.072** · 0 % ✔ |
+
+**Interpretación (para el reporte; la decisión es del equipo):**
+
+1. **Se confirma la hipótesis de los hilos agotados.**
+   - Con 200 hilos, el límite de 2 deja de bloquear las respuestas en caché. El p95 con caché baja de unos 27 s a 0.07–2.25 s.
+   - **"Límite 2 + 200 hilos, con caché" es la única variante que cumple RNF01 en los cuatro escalones.** También supera a "Sin límite, con caché" en los escalones de 10, 25 y 50 usuarios: con solo 2 embeddings a la vez, cada uno termina antes y la caché se llena más rápido que con decenas de hilos compitiendo por la CPU.
+   - Dentro del servidor, la mediana es de 0.1 ms desde los 25 usuarios (`tiempos_servidor_planB.txt`).
+2. **Sin caché, la capacidad sigue limitada por la CPU.**
+   - El throughput sube de unas 1.8 a unas 2.5 req/s (+35 %).
+   - El p95 mejora con 25 usuarios (13 → 7.8 s) y con 50 (25 → 17 s), pero con 100 sigue en unos 28 s, y ninguna variante sin caché cumple RNF01.
+   - La espera se traslada a la cola del semáforo: la mediana dentro del servidor llega a 28 s con 100 usuarios.
+3. **Advertencias:**
+   - **I6:** el resultado con caché sigue dependiendo de que haya solo 120 consultas distintas.
+   - **I5:** se midió en Windows y no en Render.
+   - **Memoria:** 200 hilos significan más memoria por hilo y más conexiones abiertas a la vez. Conviene medir la memoria (`memory_test.py` o el RSS en Render) antes de adoptarlo en el plan de 512 MB.
+   - **I2 (sin explicar):** el p50 de 9 s de "Límite 2, con caché" con 10 usuarios no se explica por falta de hilos, porque 10 usuarios no agotan 40. Sigue siendo probablemente ruido de esa corrida.
+4. **Opción para el equipo:** `EMBEDDING_CONCURRENCY=2` con `SERVER_THREADS=200`, después de verificar la memoria. **Mientras tanto, la producción sigue con `EMBEDDING_CONCURRENCY=0` y `SERVER_THREADS=40`.**
 
 ---
 
@@ -391,4 +450,5 @@ Cada celda muestra throughput · p50 · p95 · errores. La única celda que cump
 - [x] Fase 3: límite de embeddings simultáneos implementado (desactivado por defecto) y medido con prueba de carga por escalones (23-oct-2026).
 - [x] Fase 3: decisión `EMBEDDING_CONCURRENCY=0` en producción (23-oct-2026).
 - [ ] Trabajo futuro: separar la caché del cálculo de embeddings para que el límite no bloquee las respuestas en caché.
+- [ ] Plan B: el equipo decide si adopta `EMBEDDING_CONCURRENCY=2` con `SERVER_THREADS=200`, después de medir la memoria con 200 hilos.
 - [ ] Docker: instalar Docker Desktop o usar como evidencia el job `docker` de GitHub Actions.
