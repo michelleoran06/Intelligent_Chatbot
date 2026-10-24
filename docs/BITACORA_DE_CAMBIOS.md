@@ -359,11 +359,23 @@ Cada celda muestra throughput · p50 · p95 · errores. La única celda que cump
    - Con el límite de 2, la caché se llena más despacio y las peticiones encoladas en el semáforo ocupan los hilos del servidor. El p95 se queda en ~27 s hasta 100 usuarios, aunque la mediana ya es baja (0.18 s).
 4. **Conclusión provisional:** con preguntas repetidas, el límite de 2 retrasa el calentamiento de la caché y empeora la cola de latencias. Sin caché, ayuda a la latencia con poca carga y evita errores, pero no aumenta la capacidad.
 
+### Decisión de la Fase 3
+
+- **Capacidad medida:** unas **2 peticiones/s sin caché** en una instancia (un proceso uvicorn). El throughput se queda entre 1.2 y 2.4 req/s en todos los escalones de las corridas sin caché.
+- **Efecto del límite de 2:**
+  - **Sin caché, mejora el p95:** de 7.6 a 3.2 s con 10 usuarios, de 19 a 13 s con 25, de 28 a 25 s con 50 y de 45 a 29 s con 100. Además, elimina los errores `HTTP 0`.
+  - **Con caché, lo empeora:** con 100 usuarios, el p95 pasa de 0.115 s a 27 s. Los hilos del servidor quedan ocupados esperando turno en el semáforo y bloquean también las respuestas que ya están en caché, aunque esas no necesitan calcular un embedding.
+- **Decisión:** **`EMBEDDING_CONCURRENCY=0` en producción** (sin límite).
+  - Es el valor por defecto de `config.py`.
+  - `docker-compose.yml` no define la variable, así que también usa 0.
+- **Trabajo futuro:** separar la caché del cálculo de embeddings. Las consultas en caché deberían responderse sin ocupar un hilo que espera turno; por ejemplo, con un grupo de hilos dedicado al cálculo. Así el límite podría ayudar sin bloquear la caché.
+- **Nota de interpretación:** en las corridas con caché, el aumento de usuarios coincide con el llenado de la caché. Solo hay 120 consultas distintas, así que buena parte de la mejora de throughput y latencia en los escalones altos se debe a que la caché ya está llena, no a que el sistema escale. Esas cifras no representan la carga con preguntas variadas.
+
 ### Incidencias
 
 - **I1. Errores `HTTP 0` (9 en total)** solo en "Sin límite, sin caché": 5 en preguntas respondibles y 4 en las que se escalan. Ocurrieron entre los escalones de 50 y 100 usuarios (00:21:10–00:22:43 UTC). Son errores de conexión del lado del cliente durante la saturación, igual que en la Fase 1.
 - **I2. Anomalía sin explicar en "Límite 2, con caché" con 10 usuarios.** La mediana del servidor fue de 8.7 s, contra 1.9 s en "Límite 2, sin caché" en el mismo escalón. Con la caché todavía vacía deberían comportarse igual, y el código no tiene contención de candados entre la caché y la consulta. Puede ser ruido del equipo (otros procesos, antivirus sobre el `DATA_DIR` nuevo). **Conviene repetir esa corrida antes de decidir.**
-- **I3. Escalones intermedios en `carga_resumen.md`.** `analyze_load.py` agrupa por número de usuarios, así que los instantes de la rampa (20, 35, 45, 60, 70, 80, 90 usuarios) aparecen como filas. Cada uno tiene **una sola muestra** y no es un escalón real: los válidos son 10, 25, 50 y 100, con unas 55 muestras cada uno. No se modificó el script.
+- **I3. Escalones intermedios en `carga_resumen.md`, resuelto.** La primera versión de `analyze_load.py` agrupaba por número de usuarios, así que los instantes de la rampa (20, 35, 45, 60, 70, 80 y 90 usuarios) aparecían como filas, con **una sola muestra** cada uno. Se reemplazó el script por la versión de `fase3b`, que agrega `--steps` y conserva solo los escalones configurados. El resumen se regeneró con `--steps 10,25,50,100` **sin repetir las pruebas**. Las cifras de los cuatro escalones reales no cambiaron.
 - **I4. Código de salida de locust vacío** en `corridas_log.txt`. Es una limitación de `Start-Process` en PowerShell 5.1. Las 4 corridas terminaron solas en unos 245 s, sin congelarse.
 - **I5. Entorno.** Se midió en Windows y no en el contenedor Linux ni en Render (512 MB, CPU compartida), así que las cifras absolutas pueden diferir. El orden relativo entre configuraciones es lo comparable.
 
@@ -377,5 +389,6 @@ Cada celda muestra throughput · p50 · p95 · errores. La única celda que cump
 - [x] Decidir la configuración de producción: configuración C (23-oct-2026). Con el modelo `default` no hace falta cambiar el `Dockerfile` ni los requisitos.
 - [ ] Actualizar el reporte: 0.70 → 0.75 y 2.5 → 2.0 en RF05, la Sección 2.3, las Figuras 1 y 3, las Secciones 4.3, 8, 9 y 16 y la Tabla 33.
 - [x] Fase 3: límite de embeddings simultáneos implementado (desactivado por defecto) y medido con prueba de carga por escalones (23-oct-2026).
-- [ ] Fase 3: el equipo decide el valor de `EMBEDDING_CONCURRENCY` (conviene repetir antes la corrida "Límite 2, con caché", ver I2).
+- [x] Fase 3: decisión `EMBEDDING_CONCURRENCY=0` en producción (23-oct-2026).
+- [ ] Trabajo futuro: separar la caché del cálculo de embeddings para que el límite no bloquee las respuestas en caché.
 - [ ] Docker: instalar Docker Desktop o usar como evidencia el job `docker` de GitHub Actions.
