@@ -1,0 +1,13 @@
+﻿reposo   t=   0.0s  RSS=  165.3 MB  hilos=99
+reposo   t=   5.0s  RSS=  165.3 MB  hilos=98
+reposo   t=  10.1s  RSS=  165.3 MB  hilos=98
+carga    t=   0.0s  RSS=  165.3 MB  hilos=98
+carga    t=  10.1s  RSS=  307.3 MB  hilos=184
+carga    t=  20.1s  RSS=  256.2 MB  hilos=219
+carga    t=  30.3s  RSS=  401.3 MB  hilos=220
+carga    t=  40.4s  RSS=  310.1 MB  hilos=215
+carga    t=  50.5s  RSS=  423.1 MB  hilos=211
+carga    t=  60.7s  RSS=  417.4 MB  hilos=208
+final    t=  61.9s  RSS=  426.8 MB  hilos=208
+
+Reposo: 165.3 MB | Pico: 426.8 MB (final, t=61.9 s, 208 hilos) | locust c�digo 0
