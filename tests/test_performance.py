@@ -2,7 +2,7 @@
 import threading
 import time
 
-from vector_store import ChromaVectorStore
+from vector_store import ChromaVectorStore, add_in_batches
 
 
 class SlowFakeCollection:
@@ -52,3 +52,25 @@ def test_query_result_is_unchanged_by_the_limit():
     store = ChromaVectorStore(path="no_se_usa", embedding_concurrency=1, rejection_examples=[])
     store._collection = SlowFakeCollection()
     assert store.query("a que hora abren") == [("horarios", 0.1)]
+
+
+class RecordingCollection:
+    def __init__(self):
+        self.batches = []
+
+    def add(self, ids, documents, metadatas):
+        self.batches.append(len(ids))
+
+
+def test_index_is_built_in_batches():
+    collection = RecordingCollection()
+    ids = [f"doc{i}" for i in range(141)]
+    add_in_batches(collection, ids, ids, [{}] * 141, batch_size=16)
+    assert max(collection.batches) == 16
+    assert sum(collection.batches) == 141
+
+
+def test_empty_index_adds_nothing():
+    collection = RecordingCollection()
+    add_in_batches(collection, [], [], [], batch_size=16)
+    assert collection.batches == []

@@ -69,6 +69,18 @@ nlp_engine = NLPEngine(
 )
 
 
+def peak_memory_mb():
+    """Memoria máxima usada por el proceso (MB), o None si el sistema no lo informa (Windows)."""
+    try:
+        import resource
+        import sys
+
+        peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+        return round(peak / (1024 * 1024) if sys.platform == "darwin" else peak / 1024, 1)
+    except (ImportError, AttributeError, ValueError):
+        return None
+
+
 def _safe_log_error(endpoint: str, message: str) -> None:
     """Registra un error sin dejar que una falla de la base tumbe la respuesta."""
     try:
@@ -109,7 +121,8 @@ async def lifespan(_app: FastAPI):
     # Fase 3 (Plan B): tamaño del grupo de hilos que atiende los endpoints síncronos
     to_thread.current_default_thread_limiter().total_tokens = max(1, config.SERVER_THREADS)
     total = load_knowledge_base()
-    logger.info("Backend listo: %d entradas en la base de conocimiento.", total)
+    logger.info("Backend listo: %d entradas en la base de conocimiento. Memoria pico del arranque: %s MB.",
+                total, peak_memory_mb())
     yield
 
 
@@ -194,6 +207,7 @@ def health():
         "embedding_concurrency": config.EMBEDDING_CONCURRENCY,
         "nlp_cache_size": config.NLP_CACHE_SIZE,
         "server_threads": max(1, config.SERVER_THREADS),
+        "peak_memory_mb": peak_memory_mb(),
     }
 
 
