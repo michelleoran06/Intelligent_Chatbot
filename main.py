@@ -14,6 +14,7 @@ import time
 from contextlib import asynccontextmanager
 from typing import List, Literal, Optional
 
+from anyio import to_thread
 from fastapi import BackgroundTasks, Depends, FastAPI, Header, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
@@ -105,6 +106,8 @@ def refresh_knowledge_base_entry(kb_id: str) -> None:
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
+    # Fase 3 (Plan B): tamaño del grupo de hilos que atiende los endpoints síncronos
+    to_thread.current_default_thread_limiter().total_tokens = max(1, config.SERVER_THREADS)
     total = load_knowledge_base()
     logger.info("Backend listo: %d entradas en la base de conocimiento.", total)
     yield
@@ -190,6 +193,7 @@ def health():
         "rejection_examples": config.USE_REJECTION_EXAMPLES,
         "embedding_concurrency": config.EMBEDDING_CONCURRENCY,
         "nlp_cache_size": config.NLP_CACHE_SIZE,
+        "server_threads": max(1, config.SERVER_THREADS),
     }
 
 
