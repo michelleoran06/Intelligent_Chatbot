@@ -1,7 +1,7 @@
-======================================================
+
      BATERÍA DE PRUEBAS - INTELLIGENT CHATBOT
      (pruebas de sistema, Sección 15.5)
-======================================================
+
 
 Antes de empezar: backend, chat y panel en ejecución (ver Manual_del_Proyecto.md).
 Las pruebas automáticas se corren con:
