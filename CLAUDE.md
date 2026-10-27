@@ -1,4 +1,4 @@
-# Contexto del proyecto para Claude Code
+# Contexto del proyecto
 
 Proyecto escolar **Intelligent Chatbot** (Software Engineering II, UAEMéx, Equipo 1): chatbot de la cafetería de la Facultad de Ingeniería. El reporte de la Entrega 3 se evalúa con una rúbrica centrada en **pruebas, validación del modelo, CI/CD, Docker, desempeño y evidencia técnica**, no en funcionalidades nuevas.
 
