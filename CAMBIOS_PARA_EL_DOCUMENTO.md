@@ -1,4 +1,4 @@
-# Cambios que hay que reflejar en el reporte (Entrega 3)
+# Cambios que hay que reflejar en el reporte (tercera entrega)
 
 Este documento lista lo que cambió en el código y qué secciones del reporte hay que actualizar para que digan lo mismo. Sigue la regla de la Sección 20.2: una decisión que cambia debe cambiar en todos los artefactos que la mencionan.
 
