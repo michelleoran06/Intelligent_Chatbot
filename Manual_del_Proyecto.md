@@ -144,9 +144,9 @@ Los resultados (CSV y gráficas) se guardan en `evaluation/results/`.
 
 ---
 
-## 👥 Parte 2: Manual de uso
+## Parte 2: Manual de uso
 
-### 🙋 Usuario (estudiante, maestro o personal administrativo)
+### Usuario (estudiante, maestro o personal administrativo)
 
 No necesitas registrarte ni iniciar sesión.
 
