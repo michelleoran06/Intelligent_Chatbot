@@ -1,4 +1,4 @@
-#  Intelligent Chatbot - Manual del Proyecto
+#  Intelligent Chatbot - Manual del Proyecto (borrador)
 
 Instrucciones para instalar, ejecutar, probar y desplegar el sistema, y manual de uso para usuarios, operadores y administradores.
 
