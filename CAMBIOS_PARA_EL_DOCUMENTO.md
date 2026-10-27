@@ -1,9 +1,5 @@
 # Cambios que hay que reflejar en el reporte (tercera entrega)
 
-Este documento lista lo que cambió en el código y qué secciones del reporte hay que actualizar para que digan lo mismo. Sigue la regla de la Sección 20.2: una decisión que cambia debe cambiar en todos los artefactos que la mencionan.
-
-Este documento lista lo que cambio en el codigo y que secciones del reporte hay que actualizar para que digan lo mismo. Sigue la regla de la Seccion 20.: una decision que cambia debe cambiar en todos los artefactos que la mencionan.
-
 ## Antes de editar: decisión sobre el LLM (Gemini)
 
 Las notas del equipo dicen que Gemini se reintegró en `patterns.py`. **En los archivos de esta versión no existe**: ningún archivo de código menciona Gemini ni `google-generativeai`, y `.env` solo tiene la llave. Tampoco existían el `Dockerfile`, el `ci.yml` ni las pruebas que mencionan las notas; esta versión los agrega.
