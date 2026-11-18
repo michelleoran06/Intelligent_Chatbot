@@ -57,3 +57,48 @@ USE_REJECTION_EXAMPLES = os.getenv("USE_REJECTION_EXAMPLES", "true").strip().low
 
 # Si se define, los endpoints que modifican la base de conocimiento exigen el encabezado X-Admin-Token
 ADMIN_TOKEN = os.getenv("ADMIN_TOKEN", "")
+
+# ------------------------------------------------------------------ entorno y secretos (Fase 1 M4)
+# "development" (por defecto) o "production". En producción el backend no arranca si faltan secretos.
+ENV = os.getenv("ENV", "development").strip().lower() or "development"
+
+# Gemini (Fase 3). La segunda key es opcional: se usa como respaldo cuando exista.
+GEMINI_API_KEY_1 = os.getenv("GEMINI_API_KEY_1", "").strip()
+GEMINI_API_KEY_2 = os.getenv("GEMINI_API_KEY_2", "").strip()
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "").strip()
+
+# Autenticación del operador (Fase 2): hash bcrypt de la contraseña y clave para firmar tokens
+OPERATOR_PASSWORD_HASH = os.getenv("OPERATOR_PASSWORD_HASH", "").strip()
+AUTH_SECRET_KEY = os.getenv("AUTH_SECRET_KEY", "").strip()
+
+# Orígenes permitidos para CORS, separados por comas (Fase 2)
+ALLOWED_ORIGINS = [origin.strip() for origin in os.getenv("ALLOWED_ORIGINS", "").split(",") if origin.strip()]
+
+# Variables sin las cuales el backend no debe arrancar en producción (fail-closed).
+# Gemini no está aquí: si falla o no está configurado, el bot sigue respondiendo con el flujo actual.
+PRODUCTION_REQUIRED_VARS = ("OPERATOR_PASSWORD_HASH", "AUTH_SECRET_KEY", "ALLOWED_ORIGINS")
+
+
+class ConfigError(RuntimeError):
+    """La configuración no permite arrancar el backend de forma segura."""
+
+
+def missing_required_vars(environ=None) -> list:
+    """Nombres de las variables obligatorias que faltan. Solo aplica cuando ENV=production."""
+    environ = os.environ if environ is None else environ
+    if (environ.get("ENV") or "development").strip().lower() != "production":
+        return []
+    return [name for name in PRODUCTION_REQUIRED_VARS if not (environ.get(name) or "").strip()]
+
+
+def validate_config(environ=None) -> None:
+    """Fail-closed: en producción, si falta un secreto obligatorio se detiene el arranque.
+
+    El mensaje solo nombra las variables faltantes; nunca muestra valores.
+    """
+    missing = missing_required_vars(environ)
+    if missing:
+        raise ConfigError(
+            "ENV=production y faltan variables obligatorias: " + ", ".join(missing)
+            + ". Configúralas en el entorno (Render) antes de arrancar el backend."
+        )
