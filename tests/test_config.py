@@ -9,9 +9,10 @@ import pytest
 import config
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
+# Valores falsos con el formato correcto (un "hash" bcrypt de 60 caracteres que no corresponde a nada)
 SECRETOS_FALSOS = {
-    "OPERATOR_PASSWORD_HASH": "hash-falso",
-    "AUTH_SECRET_KEY": "clave-falsa",
+    "OPERATOR_PASSWORD_HASH": "$2b$12$" + "x" * 53,
+    "AUTH_SECRET_KEY": "clave-falsa-pero-suficientemente-larga-0123",
     "ALLOWED_ORIGINS": "http://localhost:8501",
 }
 
@@ -44,6 +45,21 @@ def test_error_no_muestra_valores_de_secretos():
     with pytest.raises(config.ConfigError) as exc:
         config.validate_config(env)
     assert "valor-super-secreto" not in str(exc.value)
+
+
+def test_produccion_rechaza_hash_que_no_es_bcrypt():
+    env = {"ENV": "production", **SECRETOS_FALSOS, "OPERATOR_PASSWORD_HASH": "mi-contrasena-en-texto-plano"}
+    with pytest.raises(config.ConfigError) as exc:
+        config.validate_config(env)
+    assert "OPERATOR_PASSWORD_HASH" in str(exc.value)
+    assert "mi-contrasena-en-texto-plano" not in str(exc.value)
+
+
+def test_produccion_rechaza_clave_corta():
+    env = {"ENV": "production", **SECRETOS_FALSOS, "AUTH_SECRET_KEY": "abc123xyz"}
+    with pytest.raises(config.ConfigError) as exc:
+        config.validate_config(env)
+    assert "AUTH_SECRET_KEY" in str(exc.value) and "abc123xyz" not in str(exc.value)
 
 
 def test_gemini_no_es_obligatorio():
