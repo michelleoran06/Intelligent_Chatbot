@@ -105,6 +105,13 @@ Los datos se guardan en el volumen `chatbot_data`, así que sobreviven al reempl
 | `LOGIN_MAX_FAILURES` / `LOGIN_LOCK_MINUTES` | 5 / 15 | Intentos fallidos de login por IP antes de bloquearla, y minutos de bloqueo |
 | `RATE_LIMIT_CHAT` / `RATE_LIMIT_LOGIN` / `RATE_LIMIT_REVIEWS` | 20/minute, 5/minute, 5/minute | Peticiones máximas por IP a `/chat`, `/auth/login` y `POST /reviews` (respuesta 429) |
 | `TRUSTED_PROXY_HOPS` | 0 | Proxies de confianza al final de `X-Forwarded-For` para obtener la IP real del cliente. 0 en local y Docker; en Render, ver la sección 9 |
+| `GEMINI_API_KEY_1` / `GEMINI_API_KEY_2` | (vacío) | Keys de Gemini (Google AI Studio). La segunda es de respaldo: si la primera agota su cuota o falla, se usa la otra. Vacías = el bot responde solo con la recuperación (regla de M3). Nunca se escriben en el código ni en los logs |
+| `GEMINI_MODEL` | (vacío) | Modelo de Gemini (Flash). Vacío = Gemini desactivado |
+| `GEMINI_TIMEOUT_SECONDS` | 8 | Tiempo máximo por llamada a Gemini |
+| `GEMINI_THINKING_BUDGET` | (vacío) | Presupuesto de razonamiento del modelo; 0 lo apaga en los Flash que lo permiten (más rápido) |
+| `LLM_CACHE_SIZE` | 256 | Respuestas de Gemini guardadas en memoria (misma pregunta y mismas entradas = sin gastar cuota) |
+| `LLM_CONTEXT_ENTRIES` | 3 | Entradas de la base de conocimiento que recibe Gemini (top-k de ChromaDB) |
+| `OUT_OF_SCOPE_CONFIDENCE` | 0 | Si la confianza S es menor, se avisa que solo se atienden temas de la cafetería, sin Gemini ni operador. 0 = desactivado (solo ejemplos de rechazo) |
 | `BACKEND_URL` | https://intelligent-chatbot-std8.onrender.com | Dirección del backend (solo en las interfaces); en local, `http://127.0.0.1:8000` |
 | `MAX_MESSAGES` | 15 | Límite de mensajes por sesión de chat |
 | `EMBEDDING_MODEL` | default | `default` = all-MiniLM-L6-v2; otro valor = modelo de sentence-transformers |
@@ -135,6 +142,21 @@ python experiment_quality.py           # compara 4 configuraciones del modelo (S
 Los resultados (CSV y gráficas) se guardan en `evaluation/results/`.
 
 > **Sobre la prueba de carga:** cada pregunta escalada crea un ticket. Córrela contra los contenedores locales y no contra producción. Como `/chat` acepta 20 peticiones por minuto por IP, para la prueba de carga local sube el límite (por ejemplo, `RATE_LIMIT_CHAT=100000/minute`).
+
+### 7.2 Respuestas con Gemini (Fase 3)
+Cada pregunta del dominio pasa por este orden (`rag_pipeline.decide`, usado igual por `/api/v1/chat` y por `evaluate_rag.py`):
+1. Si se parece más a un ejemplo de rechazo (o S < `OUT_OF_SCOPE_CONFIDENCE`), el bot avisa que solo atiende temas de la cafetería.
+2. Si Gemini está configurado, recibe las `LLM_CONTEXT_ENTRIES` entradas más cercanas y responde **solo** con ellas en JSON (`source_id`, `answer`). Si no le alcanzan, responde `NO_SE` y la pregunta se escala al operador. Si cita una entrada que no recibió, la respuesta se descarta.
+3. Si Gemini no está configurado o ninguna key responde, se usa la regla de M3 (S ≥ 0.75 o palabras clave): el bot nunca se queda sin responder.
+
+La pregunta va delimitada en `<pregunta>` y el prompt le indica ignorar instrucciones dentro de ella (inyección de prompt). Las pruebas (`tests/test_llm.py`) simulan Gemini, así que CI no gasta cuota. Para medir con Gemini real:
+
+```bash
+python evaluate_rag.py --no-llm   # solo recuperación (sin cuota)
+python evaluate_rag.py            # con Gemini; lee las keys de .env sin imprimirlas
+```
+
+Los resultados quedan en `evaluation/results/m4_fase3/`. Con Python 3.9 se instala `google-genai` 1.47 (la última que lo soporta); con Python 3.11 o más reciente, la versión actual.
 
 ### 7.1 Seguridad de la API
 | Endpoint | Acceso |
