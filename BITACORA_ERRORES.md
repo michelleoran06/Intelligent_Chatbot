@@ -30,4 +30,16 @@ Se usa como evidencia para el reporte del Milestone 4 ("Documentation of correct
 | E-019 | 2026-11-18 | Revisión de código | `config.py` | En producción el backend arrancaba con cualquier valor en `OPERATOR_PASSWORD_HASH` y `AUTH_SECRET_KEY`, por ejemplo una contraseña en texto plano o una clave corta y fácil de adivinar. Gravedad: baja. | `validate_config()` solo revisaba que las variables existieran. | Con `ENV=production` también se exige que el hash tenga formato bcrypt (60 caracteres, `$2…`) y que la clave tenga al menos 32 caracteres. El mensaje nunca muestra los valores. | Rama `fase-2a-backend`: `tests/test_config.py::test_produccion_rechaza_hash_que_no_es_bcrypt`, `test_produccion_rechaza_clave_corta`. | Corregido |
 | E-020 | 2026-11-18 | Prueba | `memory_test.py` / `locustfile.py` | Con el nuevo límite de 20 peticiones por minuto, el perfilado de memoria y la prueba de carga (cientos de consultas desde la misma IP) recibirían 429 y medirían respuestas de error en lugar del chatbot. Gravedad: baja. | El rate limiting de la Fase 2 aplica a cualquier cliente, incluidas las herramientas de medición. | `memory_test.py` sube `RATE_LIMIT_CHAT` antes de importar el backend; `docker-compose.yml` acepta `RATE_LIMIT_CHAT` para correr Locust en local; el manual y el docstring de Locust lo explican. Producción conserva 20/min. | Rama `fase-2a-backend`: `python memory_test.py --no-plot` termina sin errores. | Corregido |
 
+## Evidencia de despliegue: Fase 2 (2026-11-18)
+
+Verificación hecha por la usuaria en producción después de fusionar las PRs #4 (backend) y #5 (interfaces). Render tiene desplegado el mismo commit que `main` (`e9dbe82`, "Merge pull request #5").
+
+| Verificación | Resultado | Hallazgos relacionados |
+|---|---|---|
+| `GET /health` | Responde `{"status":"ok"}`, sin datos de configuración. | E-011 |
+| `GET /api/v1/tickets/escalated` sin token, en ventana de incógnito | 401 "Sesión inválida o expirada. Inicia sesión de nuevo." En una ventana normal se veía `[]` porque el navegador mostraba la respuesta guardada en caché de antes del despliegue (el código anterior no mandaba `Cache-Control: no-store`; el nuevo sí). | E-004, E-013 |
+| Login del panel del operador | Funciona con la contraseña configurada (hash en `OPERATOR_PASSWORD_HASH` de Render). | E-003 |
+| IP de `login_ok` en la pestaña 🔐 Bitácora frente a la IP pública de la usuaria | Pendiente de confirmar. | E-017 |
+| Chat del usuario | Responde normal. | E-005, E-010, E-018 |
+
 <!-- Claude Code: agrega una fila por cada error nuevo (E-010, E-011, …) y actualiza Solución / Evidencia / Estado al corregir. -->

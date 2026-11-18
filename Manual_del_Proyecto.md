@@ -116,6 +116,16 @@ Los datos se guardan en el volumen `chatbot_data`, así que sobreviven al reempl
 
 Copia `.env.example` como `.env` para tenerlas a mano. El archivo `.env` **nunca** se sube a GitHub.
 
+#### 6.1 Generar el hash de la contraseña del operador
+La contraseña nunca se guarda ni se escribe en ningún archivo: solo su hash bcrypt, y solo en `OPERATOR_PASSWORD_HASH` (Render o tu `.env` local).
+
+```bash
+pip install -r requirements.txt
+python scripts/hash_password.py                                   # pide la contraseña dos veces, sin mostrarla
+python -c "import secrets; print(secrets.token_urlsafe(48))"      # valor para AUTH_SECRET_KEY
+```
+El script rechaza contraseñas de menos de 12 caracteres o de más de 72 bytes y solo imprime el hash (`$2b$12$…`). Cópialo completo a la variable; si lo pones en un `.env` que use Docker Compose, enciérralo entre comillas simples por los signos `$`.
+
 ### 7. Pruebas y validación
 
 ```bash
