@@ -17,6 +17,7 @@ Uso (las keys se leen del entorno o de tu .env; nunca se imprimen):
 """
 import argparse
 import csv
+import inspect
 import os
 import statistics
 import tempfile
@@ -40,6 +41,19 @@ ESCALATE = "ESCALATE"
 # Métricas reportadas en M3; corresponden a validation_set (sin Gemini se reproducen exactas)
 M3 = {"accuracy": 0.875, "precision": 0.9545, "recall": 0.84, "f1": 0.8936}
 M3_SET = "validation_set"
+# Tipo de respuesta que representa cada ruta (E-027). "aclarar" no cuenta como respuesta resuelta.
+ROUTE_TIPO = {"llm": "responder", "retrieval": "responder", "clarify": "aclarar",
+              "out_of_scope": "fuera_de_tema", "human": "escalar"}
+TIPOS = ("responder", "aclarar", "fuera_de_tema", "escalar")
+
+
+def history_for(case, engine):
+    """Turno anterior del caso (columna prev_query); la respuesta del bot es la entrada que recupera."""
+    prev = (case.get("prev_query") or "").strip()
+    if not prev:
+        return []
+    result = engine.retrieve(prev)
+    return [{"user": prev, "bot": result.answer or ""}]
 
 
 def evaluate(cases, engine, llm, out_of_scope_confidence, context_k, delay=0.0):
@@ -47,14 +61,20 @@ def evaluate(cases, engine, llm, out_of_scope_confidence, context_k, delay=0.0):
     from input_validation import normalize_text
 
     counts = {"TP": 0, "FP": 0, "FN": 0, "TN": 0}
-    routes = {}
+    routes, tipos = {}, {}
     latencies, details = [], []
     for case in cases:
         query, expected = case["query"], case["expected"]
-        retrieval = engine.retrieve(query)
+        history = history_for(case, engine)
         started = time.perf_counter()
-        decision = rag_pipeline.decide(query, normalize_text(query), retrieval, engine, llm,
-                                       out_of_scope_confidence, context_k)
+        if "history" in inspect.signature(rag_pipeline.decide).parameters:  # versión con contexto (E-027)
+            retrieval = engine.retrieve(query, previous=history[-1]["user"] if history else None)
+            decision = rag_pipeline.decide(query, normalize_text(query), retrieval, engine, llm,
+                                           out_of_scope_confidence, context_k, history=history)
+        else:  # versión anterior: cada mensaje se evalúa solo
+            retrieval = engine.retrieve(query)
+            decision = rag_pipeline.decide(query, normalize_text(query), retrieval, engine, llm,
+                                           out_of_scope_confidence, context_k)
         elapsed_ms = (time.perf_counter() - started) * 1000
         if decision.llm_answer is not None and not decision.llm_answer.cached:
             latencies.append(decision.llm_answer.latency_ms)
@@ -67,6 +87,8 @@ def evaluate(cases, engine, llm, out_of_scope_confidence, context_k, delay=0.0):
             outcome = "FN" if answerable else "TN"
         counts[outcome] += 1
         routes[decision.route] = routes.get(decision.route, 0) + 1
+        tipo = ROUTE_TIPO.get(decision.route, decision.route)
+        tipos[tipo] = tipos.get(tipo, 0) + 1
         details.append({
             "query": query,
             "category": case.get("category", ""),
@@ -80,6 +102,9 @@ def evaluate(cases, engine, llm, out_of_scope_confidence, context_k, delay=0.0):
             "llm_answer": decision.llm_answer.text if decision.llm_answer else "",
             "decision_ms": round(elapsed_ms, 1),
             "outcome": outcome,
+            "expected_tipo": case.get("expected_tipo", ""),
+            "tipo": tipo,
+            "prev_query": case.get("prev_query", ""),
         })
     tp, fp, fn, tn = counts["TP"], counts["FP"], counts["FN"], counts["TN"]
     total = tp + fp + fn + tn
@@ -94,6 +119,8 @@ def evaluate(cases, engine, llm, out_of_scope_confidence, context_k, delay=0.0):
         "escalated_pct": routes.get("human", 0) / total if total else 0.0,
         "out_of_scope_pct": routes.get("out_of_scope", 0) / total if total else 0.0,
         "routes": routes,
+        "tipo_pct": {t: tipos.get(t, 0) / total if total else 0.0 for t in TIPOS},
+        "tipo_accuracy": _tipo_accuracy(details),
         # con Gemini configurado, "retrieval" significa que ninguna key respondió (cuota, error o timeout)
         "llm_fallbacks": routes.get("retrieval", 0) if llm is not None else 0,
         "llm_latency_avg_ms": statistics.mean(latencies) if latencies else None,
@@ -101,6 +128,13 @@ def evaluate(cases, engine, llm, out_of_scope_confidence, context_k, delay=0.0):
         "min_answerable_confidence": min(answerable_conf) if answerable_conf else None,
         "details": details,
     }
+
+
+def _tipo_accuracy(details):
+    labeled = [d for d in details if d["expected_tipo"]]
+    if not labeled:
+        return None
+    return sum(1 for d in labeled if d["tipo"] == d["expected_tipo"]) / len(labeled)
 
 
 def write_csv(path, rows):
@@ -130,6 +164,12 @@ def summary_md(name, m, mode):
         f"| Avisadas como fuera de tema | | {pct(m['out_of_scope_pct'])} |",
         f"| Latencia promedio de Gemini | | {ms(m['llm_latency_avg_ms'])} |",
         f"| Latencia p95 de Gemini | | {ms(m['llm_latency_p95_ms'])} |", "",
+        "| Tasa | Valor |", "|---|---|",
+        f"| Respondidas (resueltas) | {pct(m['tipo_pct']['responder'])} |",
+        f"| Pidió aclarar (no resuelta) | {pct(m['tipo_pct']['aclarar'])} |",
+        f"| Fuera de tema | {pct(m['tipo_pct']['fuera_de_tema'])} |",
+        f"| **Escaladas al operador (ticket)** | **{pct(m['tipo_pct']['escalar'])}** |",
+        f"| Tipo correcto (casos con `expected_tipo`) | {pct(m['tipo_accuracy'])} |", "",
         f"Matriz de confusión: TP = {m['TP']}, FP = {m['FP']}, FN = {m['FN']}, TN = {m['TN']}. "
         f"Rutas: {m['routes']}. Respaldos sin Gemini: {m['llm_fallbacks']}. S mínima de una pregunta respondible: {m['min_answerable_confidence']}.", "",
     ]
@@ -143,8 +183,9 @@ def main():
     parser.add_argument("--no-llm", action="store_true", help="solo recuperación, sin llamar a Gemini")
     parser.add_argument("--out-dir", default=os.path.join("evaluation", "results", "m4_fase3"))
     parser.add_argument("--out-of-scope-confidence", type=float, default=None)
-    parser.add_argument("--delay", type=float, default=6.0,
-                        help="segundos entre llamadas a Gemini (6 s = 10 por minuto, dentro del plan gratuito)")
+    parser.add_argument("--delay", type=float, default=4.0,
+                        help="segundos de pausa después de cada llamada a Gemini (con ~6 s de latencia, <10 por minuto)")
+    parser.add_argument("--tag", default=None, help="sufijo de los archivos de salida, p. ej. antes o despues")
     args = parser.parse_args()
 
     load_dotenv()
@@ -169,7 +210,7 @@ def main():
     engine.set_knowledge_base(DEFAULT_ENTRIES)
 
     os.makedirs(args.out_dir, exist_ok=True)
-    tag = "sin_llm" if llm is None else "con_llm"
+    tag = args.tag or ("sin_llm" if llm is None else "con_llm")
     report = [f"# Revalidación Fase 3 ({mode})", "",
               f"Umbral {config.CONFIDENCE_THRESHOLD}, divisor {config.CONFIDENCE_DIVISOR}, "
               f"OUT_OF_SCOPE_CONFIDENCE {cut}, contexto top-{config.LLM_CONTEXT_ENTRIES}.", ""]
@@ -189,6 +230,8 @@ def main():
             if d["outcome"] in ("FP", "FN"):
                 print(f"  {d['outcome']}: {d['query']} -> {d['route']} {d['predicted'] or '-'} "
                       f"(esperada {d['expected']}, S={d['confidence']})")
+            elif d["expected_tipo"] and d["tipo"] != d["expected_tipo"]:
+                print(f"  TIPO: {d['query']} -> {d['tipo']} (esperado {d['expected_tipo']})")
     with open(os.path.join(args.out_dir, f"resumen_{tag}.md"), "w", encoding="utf-8") as handle:
         handle.write("\n".join(report))
     print(f"Resultados en {args.out_dir}/")
