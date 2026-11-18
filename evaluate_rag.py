@@ -42,7 +42,7 @@ M3 = {"accuracy": 0.875, "precision": 0.9545, "recall": 0.84, "f1": 0.8936}
 M3_SET = "validation_set"
 
 
-def evaluate(cases, engine, llm, out_of_scope_confidence, context_k):
+def evaluate(cases, engine, llm, out_of_scope_confidence, context_k, delay=0.0):
     import rag_pipeline
     from input_validation import normalize_text
 
@@ -58,6 +58,8 @@ def evaluate(cases, engine, llm, out_of_scope_confidence, context_k):
         elapsed_ms = (time.perf_counter() - started) * 1000
         if decision.llm_answer is not None and not decision.llm_answer.cached:
             latencies.append(decision.llm_answer.latency_ms)
+        if llm is not None and decision.route != "out_of_scope" and delay:
+            time.sleep(delay)  # respeta el límite por minuto del plan gratuito
         answerable = expected != ESCALATE
         if decision.answered:
             outcome = "TP" if answerable and decision.kb_id == expected else "FP"
@@ -92,6 +94,8 @@ def evaluate(cases, engine, llm, out_of_scope_confidence, context_k):
         "escalated_pct": routes.get("human", 0) / total if total else 0.0,
         "out_of_scope_pct": routes.get("out_of_scope", 0) / total if total else 0.0,
         "routes": routes,
+        # con Gemini configurado, "retrieval" significa que ninguna key respondió (cuota, error o timeout)
+        "llm_fallbacks": routes.get("retrieval", 0) if llm is not None else 0,
         "llm_latency_avg_ms": statistics.mean(latencies) if latencies else None,
         "llm_latency_p95_ms": sorted(latencies)[int(0.95 * (len(latencies) - 1))] if latencies else None,
         "min_answerable_confidence": min(answerable_conf) if answerable_conf else None,
@@ -127,7 +131,7 @@ def summary_md(name, m, mode):
         f"| Latencia promedio de Gemini | | {ms(m['llm_latency_avg_ms'])} |",
         f"| Latencia p95 de Gemini | | {ms(m['llm_latency_p95_ms'])} |", "",
         f"Matriz de confusión: TP = {m['TP']}, FP = {m['FP']}, FN = {m['FN']}, TN = {m['TN']}. "
-        f"Rutas: {m['routes']}. S mínima de una pregunta respondible: {m['min_answerable_confidence']}.", "",
+        f"Rutas: {m['routes']}. Respaldos sin Gemini: {m['llm_fallbacks']}. S mínima de una pregunta respondible: {m['min_answerable_confidence']}.", "",
     ]
     return "\n".join(lines)
 
@@ -139,6 +143,8 @@ def main():
     parser.add_argument("--no-llm", action="store_true", help="solo recuperación, sin llamar a Gemini")
     parser.add_argument("--out-dir", default=os.path.join("evaluation", "results", "m4_fase3"))
     parser.add_argument("--out-of-scope-confidence", type=float, default=None)
+    parser.add_argument("--delay", type=float, default=6.0,
+                        help="segundos entre llamadas a Gemini (6 s = 10 por minuto, dentro del plan gratuito)")
     args = parser.parse_args()
 
     load_dotenv()
@@ -170,10 +176,13 @@ def main():
     for path in args.sets:
         with open(path, newline="", encoding="utf-8") as handle:
             cases = [row for row in csv.DictReader(handle) if row.get("query")]
-        metrics = evaluate(cases, engine, llm, cut, config.LLM_CONTEXT_ENTRIES)
+        metrics = evaluate(cases, engine, llm, cut, config.LLM_CONTEXT_ENTRIES, 0.0 if llm is None else args.delay)
         name = os.path.splitext(os.path.basename(path))[0]
         write_csv(os.path.join(args.out_dir, f"{name}_{tag}.csv"), metrics["details"])
         block = summary_md(name, metrics, mode)
+        if metrics["llm_fallbacks"]:
+            block += (f"\n> Atención: {metrics['llm_fallbacks']} preguntas usaron el respaldo porque Gemini no respondió "
+                      "(cuota o error). Esas no miden a Gemini; sube --delay o corre otro día.\n")
         print(block)
         report.append(block)
         for d in metrics["details"]:
