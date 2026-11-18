@@ -20,6 +20,8 @@ import tracemalloc
 _TMP_DIR = tempfile.mkdtemp(prefix="memtest_")
 os.environ["DATABASE_URL"] = f"sqlite:///{_TMP_DIR}/memtest.db"
 os.environ["CHROMA_PATH"] = os.path.join(_TMP_DIR, "chroma")
+# El perfilado manda cientos de consultas desde la misma IP: se sube el límite de /chat (Fase 2)
+os.environ.setdefault("RATE_LIMIT_CHAT", "1000000/minute")
 
 from fastapi.testclient import TestClient  # noqa: E402
 

@@ -26,6 +26,8 @@ services:
       OPERATOR_PASSWORD_HASH: ${OPERATOR_PASSWORD_HASH:-}
       AUTH_SECRET_KEY: ${AUTH_SECRET_KEY:-}
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:8501,http://localhost:8502}
+      # Súbelo solo para pruebas de carga locales (Locust)
+      RATE_LIMIT_CHAT: ${RATE_LIMIT_CHAT:-20/minute}
     volumes:
       - chatbot_data:/app/data   # SQLite y ChromaDB sobreviven al reemplazo del contenedor
     healthcheck:
