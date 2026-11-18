@@ -1,7 +1,9 @@
 """Patrones de diseño del sistema (Business Logic Layer, Secciones 3.2 y 3.3).
 
-- Strategy: ResponseStrategy.resolve(context) -> ResponseResult, con BotResponseStrategy y
-  HumanFallbackStrategy. StrategySelector aplica la regla única S >= umbral.
+- Strategy: ResponseStrategy.resolve(context) -> ResponseResult, con BotResponseStrategy,
+  LLMResponseStrategy (respuesta redactada por Gemini, Fase 3), OutOfScopeStrategy (pregunta de otro
+  tema: se avisa sin escalar) y HumanFallbackStrategy. StrategySelector aplica la regla S >= umbral
+  cuando Gemini no está disponible.
 - Observer: EscalationSubject notifica a los observadores (OperatorDashboardNotifier) cada vez
   que una conversación se escala. El panel de operador además consulta la cola de tickets por
   HTTP, así un operador desconectado nunca bloquea una notificación (Sección 6).
@@ -25,6 +27,10 @@ STATUS_RESOLVED_BY_HUMAN = "resolved_by_human"
 
 ESCALATION_MESSAGE = "Tu pregunta fue enviada a un operador. Por favor espera la respuesta."
 LOW_CONFIDENCE_PREFIX = "No encontré una respuesta segura a tu pregunta. "
+OUT_OF_SCOPE_MESSAGE = (
+    "Solo puedo ayudarte con temas de la cafetería: menú, precios, horarios y formas de pago. "
+    "Si tu duda sí es sobre la cafetería, pulsa «Hablar con un operador»."
+)
 
 
 @dataclass(frozen=True)
@@ -110,6 +116,24 @@ class BotResponseStrategy(ResponseStrategy):
 
     def resolve(self, context: ConversationContext) -> ResponseResult:
         return ResponseResult(routed_to=ROUTED_BOT, message=context.candidate_answer, status=STATUS_ANSWERED)
+
+
+class LLMResponseStrategy(ResponseStrategy):
+    """Devuelve la respuesta que Gemini redactó con las entradas recuperadas (RAG, Fase 3).
+
+    El backend solo la usa si Gemini citó una entrada del contexto; si Gemini responde NO_SE,
+    se usa HumanFallbackStrategy.
+    """
+
+    def resolve(self, context: ConversationContext) -> ResponseResult:
+        return ResponseResult(routed_to=ROUTED_BOT, message=context.candidate_answer, status=STATUS_ANSWERED)
+
+
+class OutOfScopeStrategy(ResponseStrategy):
+    """Pregunta claramente de otro tema: se responde con cortesía, sin Gemini y sin escalar."""
+
+    def resolve(self, context: ConversationContext) -> ResponseResult:
+        return ResponseResult(routed_to=ROUTED_BOT, message=OUT_OF_SCOPE_MESSAGE, status=STATUS_ANSWERED)
 
 
 class HumanFallbackStrategy(ResponseStrategy):

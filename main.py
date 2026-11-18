@@ -33,6 +33,8 @@ from input_validation import is_human_request, normalize_text, small_talk_reply,
 from knowledge_base import DEFAULT_ENTRIES, KB_SEED_VERSION
 from nlp_engine import NLPEngine
 import security
+import llm_client
+import rag_pipeline
 from patterns import (
     ROUTED_BOT,
     STATUS_ANSWERED,
@@ -40,7 +42,9 @@ from patterns import (
     ConversationContext,
     EscalationSubject,
     HumanFallbackStrategy,
+    LLMResponseStrategy,
     OperatorDashboardNotifier,
+    OutOfScopeStrategy,
     StrategySelector,
 )
 from vector_store import get_store
@@ -71,6 +75,11 @@ escalation_subject.attach(operator_notifier)
 bot_strategy = BotResponseStrategy()
 fallback_strategy = HumanFallbackStrategy(escalation_subject)
 strategy_selector = StrategySelector(bot_strategy, fallback_strategy, config.CONFIDENCE_THRESHOLD)
+llm_strategy = LLMResponseStrategy()
+out_of_scope_strategy = OutOfScopeStrategy()
+
+# Fase 3: Gemini con dos keys y failover. Sin keys o sin modelo, el chat usa solo la recuperación.
+llm = llm_client.from_config()
 
 nlp_engine = NLPEngine(
     store=get_store(),
@@ -300,6 +309,9 @@ def system_details(request: Request):
         "confidence_threshold": nlp_engine.confidence_threshold,
         "knowledge_base_version": KB_SEED_VERSION,
         "embedding_model": config.EMBEDDING_MODEL,
+        "llm_configured": llm.available,
+        "llm_model": config.GEMINI_MODEL or None,
+        "llm_keys": llm.key_count,
         "rejection_examples": config.USE_REJECTION_EXAMPLES,
         "embedding_concurrency": config.EMBEDDING_CONCURRENCY,
         "nlp_cache_size": config.NLP_CACHE_SIZE,
@@ -335,6 +347,19 @@ def check_session():
     return {"status": "ok"}
 
 
+def _decide(query: str, normalized: str, retrieval):
+    """Fase 3 (rag_pipeline.decide): devuelve (estrategia, ruta, respuesta de Gemini o None)."""
+    decision = rag_pipeline.decide(query, normalized, retrieval, nlp_engine, llm,
+                                   config.OUT_OF_SCOPE_CONFIDENCE, config.LLM_CONTEXT_ENTRIES)
+    strategy = {
+        rag_pipeline.ROUTE_OUT_OF_SCOPE: out_of_scope_strategy,
+        rag_pipeline.ROUTE_LLM: llm_strategy,
+        rag_pipeline.ROUTE_RETRIEVAL: bot_strategy,
+        rag_pipeline.ROUTE_HUMAN: fallback_strategy,
+    }[decision.route]
+    return strategy, decision.route, decision.llm_answer
+
+
 @app.post("/api/v1/chat")
 @limiter.limit(lambda: config.RATE_LIMIT_CHAT)
 def handle_chat(request: Request, payload: QueryPayload):
@@ -360,12 +385,19 @@ def handle_chat(request: Request, payload: QueryPayload):
             }
 
         requested_human = payload.request_human or is_human_request(normalized)
+        llm_answer = None
         if requested_human:
             candidate, confidence, kb_id, method = "", 0.0, None, "user_request"
+            strategy, route = fallback_strategy, "human"
         else:
             retrieval = nlp_engine.retrieve(query)
             candidate, confidence = retrieval.answer, retrieval.confidence
             kb_id, method = retrieval.kb_id, retrieval.method
+            strategy, route, llm_answer = _decide(query, normalized, retrieval)
+            if llm_answer is not None and not llm_answer.is_no_se:
+                candidate, kb_id, method = llm_answer.text, llm_answer.source_id, "llm"
+            elif llm_answer is not None:
+                method = "llm_no_se"
 
         context = ConversationContext(
             user_id=payload.user_id,
@@ -376,7 +408,9 @@ def handle_chat(request: Request, payload: QueryPayload):
             kb_id=kb_id,
             requested_human=requested_human,
         )
-        result = strategy_selector.select(confidence, requested_human).resolve(context)
+        result = strategy.resolve(context)
+        if result.routed_to != ROUTED_BOT:
+            route = "human"
 
         elapsed_ms = round((time.perf_counter() - started) * 1000, 2)
         public_id = db.new_public_id()
@@ -391,6 +425,9 @@ def handle_chat(request: Request, payload: QueryPayload):
             method=method,
             kb_id=kb_id,
             response_time_ms=elapsed_ms,
+            route=route,
+            llm_key=llm_answer.key_label if llm_answer else None,
+            llm_latency_ms=llm_answer.latency_ms if llm_answer and not llm_answer.cached else None,
         )
         return {
             "ticket_id": public_id,  # el usuario solo conoce el public_id, nunca el id interno
@@ -400,6 +437,7 @@ def handle_chat(request: Request, payload: QueryPayload):
             "confidence_score": confidence,
             "status": result.status,
             "method": method,
+            "route": route,
             "response_time_ms": elapsed_ms,
         }
     except HTTPException:
