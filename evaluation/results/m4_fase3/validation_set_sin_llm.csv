@@ -1,0 +1,41 @@
+query,category,expected,route,predicted,retrieval_kb,retrieval_method,confidence,llm_key,llm_answer,decision_ms,outcome
+¿A qué hora abren la cafe en la mañana?,paraphrase,horarios,retrieval,horarios,horarios,semantic,0.7506,,,0.1,TP
+Oigan hasta qué hora dejan de dar servicio hoy?,paraphrase,horarios,retrieval,horarios,horarios,semantic,0.7933,,,0.0,TP
+¿Se puede pagar con tarjeta o puro efectivo?,paraphrase,pagos,retrieval,pagos,pagos,keyword,0.75,,,0.1,TP
+No traigo cash ¿tienen terminal o aceptan transferencia?,paraphrase,pagos,retrieval,pagos,pagos,keyword,0.75,,,0.1,TP
+¿En dónde está la cafetería exactamente?,paraphrase,ubicacion,retrieval,ubicacion,ubicacion,semantic,0.9337,,,0.0,TP
+¿Cómo llego a la cafe desde el edificio principal?,paraphrase,ubicacion,retrieval,ubicacion,ubicacion,semantic,0.7646,,,0.0,TP
+¿Qué tienen para desayunar ahorita?,paraphrase,desayunos,human,,desayunos,semantic,0.7456,,,0.0,FN
+¿Venden huevos al gusto o algo así en la mañana?,paraphrase,desayunos,human,,carnitas,semantic,0.5867,,,0.0,FN
+Tengo antojo de algo rápido ¿tienen quesadillas o molletes?,paraphrase,antojitos,retrieval,antojitos,antojitos,keyword,0.75,,,0.1,TP
+¿A cuánto están los tacos dorados y las gringas?,paraphrase,antojitos,retrieval,carnitas,carnitas,semantic,0.7558,,,0.0,FP
+¿Venden chilaquiles con milanesa o pollo?,paraphrase,chilaquiles,retrieval,chilaquiles,chilaquiles,semantic,0.7754,,,0.0,TP
+¿Qué tipos de chilaquiles preparan y cuánto cuestan?,paraphrase,chilaquiles,retrieval,chilaquiles,chilaquiles,semantic,0.8628,,,0.0,TP
+¿Tienen sándwiches de pierna o hamburguesas?,paraphrase,sandwiches,retrieval,sandwiches,sandwiches,semantic,0.8781,,,0.0,TP
+¿De qué son los sándwiches que venden?,paraphrase,sandwiches,retrieval,sandwiches,sandwiches,keyword,0.75,,,0.0,TP
+¿Qué traen los paquetes de comida completos?,paraphrase,paquetes,retrieval,paquetes,paquetes,semantic,0.7838,,,0.0,TP
+¿Venden paquetes con pechuga asada o arrachera?,paraphrase,paquetes,retrieval,paquetes,paquetes,keyword,0.75,,,0.0,TP
+¿Venden rebanadas de pizza o solo enteras?,paraphrase,pizzas,retrieval,pizzas,pizzas,keyword,0.75,,,0.0,TP
+¿De qué especialidad es la pizza que venden hoy?,paraphrase,pizzas,human,,pizzas,semantic,0.7066,,,0.0,FN
+¿Saben si hoy venden tacos de carnitas?,paraphrase,carnitas,retrieval,carnitas,carnitas,semantic,0.7716,,,0.1,TP
+¿De pura casualidad tendrán tortas de carnitas?,paraphrase,carnitas,retrieval,carnitas,carnitas,semantic,0.7881,,,0.0,TP
+¿Qué hay para tomar? ¿Tienen jugos naturales?,paraphrase,bebidas,retrieval,bebidas,bebidas,semantic,0.85,,,0.0,TP
+¿Venden aguas de sabor o puros licuados?,paraphrase,bebidas,human,,bebidas,semantic,0.6038,,,0.0,FN
+¿Tienen galletas o algo dulce de postre?,paraphrase,postres,retrieval,postres,postres,semantic,0.7669,,,0.0,TP
+¿Venden obleas enjambres o algún dulce?,paraphrase,postres,retrieval,postres,postres,keyword,0.75,,,0.1,TP
+¿Cuál es el menú del día de hoy y qué incluye?,paraphrase,menu_del_dia,retrieval,menu_del_dia,menu_del_dia,semantic,0.8525,,,0.0,TP
+Pásenme el menú ¿qué venden de comer en general?,paraphrase,menu_general,retrieval,menu_general,menu_general,keyword,0.75,,,0.0,TP
+¿Saben cuándo son las inscripciones para el próximo semestre?,out_of_scope,ESCALATE,out_of_scope,,,rejected,0.0,,,0.0,TN
+¿Dónde está la biblioteca central?,out_of_scope,ESCALATE,out_of_scope,,,rejected,0.0,,,0.0,TN
+¿Alguien sabe si el profe de cálculo vino hoy?,out_of_scope,ESCALATE,out_of_scope,,,rejected,0.0,,,0.0,TN
+¿Cómo puedo sacar una constancia de estudios con promedio?,out_of_scope,ESCALATE,out_of_scope,,,rejected,0.0,,,0.0,TN
+¿En qué salón me toca la clase de Ingeniería de Software?,out_of_scope,ESCALATE,out_of_scope,,,rejected,0.0,,,0.0,TN
+¿Saben si ya depositaron la beca Benito Juárez?,out_of_scope,ESCALATE,human,,carnitas,semantic,0.4843,,,0.0,TN
+Perdí mi credencial ¿dónde la puedo reponer?,out_of_scope,ESCALATE,out_of_scope,,,rejected,0.0,,,0.0,TN
+¿Qué camión o ruta del potrobus me deja en la facultad?,out_of_scope,ESCALATE,out_of_scope,,,rejected,0.0,,,0.0,TN
+¿Alguien tiene el temario del segundo parcial?,out_of_scope,ESCALATE,human,,carnitas,semantic,0.6052,,,0.1,TN
+¿Cómo me conecto al WiFi de la escuela cuál es la contraseña?,out_of_scope,ESCALATE,out_of_scope,,,rejected,0.0,,,0.0,TN
+¿Saben a qué hora cierra el centro de cómputo?,out_of_scope,ESCALATE,out_of_scope,,,rejected,0.0,,,0.0,TN
+¿Dónde puedo comprar una bata para entrar al laboratorio?,out_of_scope,ESCALATE,out_of_scope,,,rejected,0.0,,,0.0,TN
+¿Saben si hay paro de labores mañana?,out_of_scope,ESCALATE,human,,horarios,semantic,0.557,,,0.0,TN
+¿Hasta qué día tengo para dar de baja una materia?,out_of_scope,ESCALATE,out_of_scope,,,rejected,0.0,,,0.0,TN
