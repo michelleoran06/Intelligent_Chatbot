@@ -1,9 +1,13 @@
 """Panel de operador y administrador (Presentation Layer).
 
 - Casos pendientes: la cola se actualiza sola cada pocos segundos (polling, Sección 6).
-- Estadísticas (RF08), reseñas del lugar (RF11), base de conocimiento (RF03) y errores.
+- Estadísticas (RF08), reseñas del lugar (RF11), base de conocimiento (RF03), errores y bitácora.
+- Fase 2 (M4): nada se muestra sin iniciar sesión. La contraseña se valida en el backend
+  (POST /api/v1/auth/login); el panel solo guarda el token en st.session_state y lo manda en cada
+  petición. Si el backend responde 401 (token vencido o inválido), se vuelve a la pantalla de login.
 
-Variables de entorno: BACKEND_URL y, si el backend lo exige, ADMIN_TOKEN.
+Configuración: BACKEND_URL (Secrets de Streamlit Cloud o variable de entorno). La contraseña NO se
+configura aquí; solo su hash, y solo en el backend (OPERATOR_PASSWORD_HASH en Render).
 """
 import os
 import time
@@ -16,12 +20,23 @@ import streamlit.components.v1 as components
 # Por defecto usa el backend desplegado en Render. Para trabajar con un backend local:
 #   BACKEND_URL=http://127.0.0.1:8000  (Docker Compose ya lo define por su cuenta)
 DEFAULT_BACKEND_URL = "https://intelligent-chatbot-std8.onrender.com"
-BASE_URL = os.getenv("BACKEND_URL", DEFAULT_BACKEND_URL).rstrip("/")
-ADMIN_TOKEN = os.getenv("ADMIN_TOKEN", "")
+
+
+def _setting(name: str, default: str) -> str:
+    """Lee de los Secrets de Streamlit y, si no están, de la variable de entorno."""
+    try:
+        value = st.secrets.get(name)
+    except Exception:  # sin archivo de secrets (local, Docker, pruebas)
+        value = None
+    return str(value or os.getenv(name) or default)
+
+
+BASE_URL = _setting("BACKEND_URL", DEFAULT_BACKEND_URL).rstrip("/")
 REFRESH_SECONDS = int(os.getenv("DASHBOARD_REFRESH_SECONDS", "10"))
 ALERT_SOUND_URL = "https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3"
 CONNECTION_ERROR = ("No se pudo conectar con la API. Si el backend estaba dormido (plan gratuito de Render), "
                     "espera un minuto y actualiza la página.")
+SESSION_EXPIRED = "Tu sesión expiró o no es válida. Inicia sesión de nuevo."
 
 st.set_page_config(page_title="Panel de Operador y Admin", page_icon="🎧", layout="wide")
 
@@ -60,12 +75,63 @@ st.markdown(
 )
 
 
+# ------------------------------------------------------------------ sesión del operador (Fase 2)
+def auth_headers() -> dict:
+    token = st.session_state.get("auth_token")
+    return {"Authorization": f"Bearer {token}"} if token else {}
+
+
+def logout(message: str = "") -> None:
+    st.session_state.pop("auth_token", None)
+    st.session_state.pop("previous_count", None)
+    if message:
+        st.session_state.auth_message = message
+
+
+def handle_unauthorized() -> None:
+    """El backend rechazó el token: se borra y se vuelve al login."""
+    logout(SESSION_EXPIRED)
+    st.rerun(scope="app")
+
+
+def login_screen() -> None:
+    st.subheader("🔐 Inicia sesión")
+    message = st.session_state.pop("auth_message", "")
+    if message:
+        st.warning(message)
+    with st.form("login_form", clear_on_submit=True):
+        password = st.text_input("Contraseña del operador", type="password", max_chars=256)
+        submitted = st.form_submit_button("Entrar", type="primary")
+    if not submitted:
+        return
+    try:
+        res = requests.post(f"{BASE_URL}/api/v1/auth/login", json={"password": password}, timeout=60)
+    except requests.exceptions.RequestException:
+        st.error(CONNECTION_ERROR)
+        return
+    if res.status_code == 200:
+        try:
+            st.session_state.auth_token = res.json()["access_token"]
+        except (ValueError, KeyError, TypeError):
+            st.error("La API devolvió una respuesta no válida.")
+            return
+        st.rerun()
+    elif res.status_code in (401, 422):
+        st.error("Credenciales inválidas.")
+    elif res.status_code == 429:
+        st.error(error_detail(res))
+    else:
+        st.error(f"No se pudo iniciar sesión: {error_detail(res)}")
+
+
 # ------------------------------------------------------------------ utilidades HTTP
 def api_get(path: str):
     try:
-        res = requests.get(f"{BASE_URL}{path}", timeout=60)
+        res = requests.get(f"{BASE_URL}{path}", headers=auth_headers(), timeout=60)
     except requests.exceptions.RequestException:
         return None, CONNECTION_ERROR
+    if res.status_code == 401:
+        handle_unauthorized()
     if res.status_code != 200:
         return None, f"La API respondió con el código {res.status_code}."
     try:
@@ -75,11 +141,13 @@ def api_get(path: str):
 
 
 def api_send(method: str, path: str, payload=None):
-    headers = {"X-Admin-Token": ADMIN_TOKEN} if ADMIN_TOKEN else {}
     try:
-        return requests.request(method, f"{BASE_URL}{path}", json=payload, headers=headers, timeout=60), None
+        res = requests.request(method, f"{BASE_URL}{path}", json=payload, headers=auth_headers(), timeout=60)
     except requests.exceptions.RequestException:
         return None, CONNECTION_ERROR
+    if res.status_code == 401:
+        handle_unauthorized()
+    return res, None
 
 
 def error_detail(res) -> str:
@@ -216,8 +284,6 @@ def reviews_section():
 # ------------------------------------------------------------------ base de conocimiento (RF03)
 def knowledge_base_section():
     st.subheader("📚 Base de conocimiento")
-    if not ADMIN_TOKEN:
-        st.caption("Sin ADMIN_TOKEN configurado: el backend acepta cambios sin token (recomendable solo en local).")
     data, error = api_get("/api/v1/kb")
     if error:
         st.error(error)
@@ -299,8 +365,32 @@ def errors_section():
         st.success("Sin errores registrados.")
 
 
-tab_queue, tab_stats, tab_reviews, tab_kb, tab_errors = st.tabs(
-    ["🚨 Casos pendientes", "📊 Estadísticas", "⭐ Reseñas", "📚 Base de conocimiento", "⚠️ Errores"]
+# ------------------------------------------------------------------ bitácora del operador (Fase 2)
+def actions_section():
+    st.subheader("🔐 Bitácora de acciones del operador")
+    st.button("🔄 Actualizar bitácora")
+    data, error = api_get("/api/v1/operator-actions")
+    if error:
+        st.error(error)
+    elif data:
+        st.dataframe(pd.DataFrame(data), hide_index=True)
+    else:
+        st.info("Sin acciones registradas.")
+
+
+# ------------------------------------------------------------------ armado de la página
+if not st.session_state.get("auth_token"):
+    login_screen()
+    st.stop()
+
+with st.sidebar:
+    st.markdown("### 🎧 Sesión de operador")
+    if st.button("🚪 Cerrar sesión"):
+        logout("Cerraste sesión.")
+        st.rerun()
+
+tab_queue, tab_stats, tab_reviews, tab_kb, tab_errors, tab_actions = st.tabs(
+    ["🚨 Casos pendientes", "📊 Estadísticas", "⭐ Reseñas", "📚 Base de conocimiento", "⚠️ Errores", "🔐 Bitácora"]
 )
 with tab_queue:
     queue_monitor()
@@ -314,3 +404,5 @@ with tab_kb:
     knowledge_base_section()
 with tab_errors:
     errors_section()
+with tab_actions:
+    actions_section()
