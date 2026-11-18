@@ -126,6 +126,14 @@ python -c "import secrets; print(secrets.token_urlsafe(48))"      # valor para A
 ```
 El script rechaza contraseñas de menos de 12 caracteres o de más de 72 bytes y solo imprime el hash (`$2b$12$…`). Cópialo completo a la variable; si lo pones en un `.env` que use Docker Compose, enciérralo entre comillas simples por los signos `$`.
 
+> **Windows:** si el script falla con `ImportError: DLL load failed while importing _bcrypt`, tu entorno tiene una versión de bcrypt distinta a la del proyecto. Reinstálala con la versión fijada (E-021):
+> ```bash
+> venv\Scripts\activate
+> pip uninstall -y bcrypt
+> pip install -r requirements.txt
+> python scripts/hash_password.py
+> ```
+
 ### 7. Pruebas y validación
 
 ```bash
