@@ -83,3 +83,23 @@ def test_backend_no_arranca_en_produccion_sin_secretos():
 def test_backend_arranca_en_produccion_con_secretos():
     result = _importar_main({"ENV": "production", **SECRETOS_FALSOS})
     assert result.returncode == 0, result.stderr
+
+
+# E-025: ninguna key de Google (formatos "AIza…" y "AQ.…") puede quedar en un archivo versionado
+GOOGLE_KEY = __import__("re").compile(r"AIza[0-9A-Za-z_\-]{30,}|AQ\.[0-9A-Za-z_\-]{30,}")
+
+
+def test_ningun_archivo_versionado_tiene_keys_de_google():
+    files = subprocess.run(["git", "ls-files"], cwd=REPO_ROOT, capture_output=True, text=True, check=True).stdout
+    encontrados = []
+    for name in files.splitlines():
+        path = REPO_ROOT / name
+        if not path.is_file() or path.suffix in {".db", ".png", ".jpg", ".sqlite3", ".bin"}:
+            continue
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (UnicodeDecodeError, OSError):
+            continue
+        if GOOGLE_KEY.search(text):
+            encontrados.append(name)  # solo el nombre del archivo, nunca la key
+    assert encontrados == []
