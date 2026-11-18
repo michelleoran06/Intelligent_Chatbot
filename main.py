@@ -7,24 +7,32 @@ Flujo de /api/v1/chat:
 4. RF02: el motor de IA recupera la respuesta candidata y su confianza S.
 5. Strategy: S >= umbral -> BotResponseStrategy; si no -> HumanFallbackStrategy (Observer).
 6. RF04: la interacción se registra en la SQL DB y se devuelve la respuesta.
+
+Seguridad (Fase 2 M4): los endpoints del operador exigen un token (security.require_operator), el usuario
+solo ve el public_id (UUID) de sus tickets, hay límite de peticiones por IP (slowapi), CORS restringido,
+encabezados de seguridad y /docs apagado en producción.
 """
-import hmac
 import logging
 import time
 from contextlib import asynccontextmanager
-from typing import List, Literal, Optional
+import uuid
+from typing import List, Literal
 
 from anyio import to_thread
-from fastapi import BackgroundTasks, Depends, FastAPI, Header, HTTPException, Request
+from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
+from slowapi import Limiter
+from slowapi.errors import RateLimitExceeded
 
 import config
 import database as db
 from input_validation import is_human_request, normalize_text, small_talk_reply, validate_query_text
 from knowledge_base import DEFAULT_ENTRIES, KB_SEED_VERSION
 from nlp_engine import NLPEngine
+import security
 from patterns import (
     ROUTED_BOT,
     STATUS_ANSWERED,
@@ -49,6 +57,9 @@ TOO_LONG_MESSAGE = (
     "Por favor, resúmelo un poco e intenta de nuevo."
 )
 INVALID_REQUEST_MESSAGE = "La petición no es válida: faltan campos obligatorios o tienen un formato incorrecto."
+RATE_LIMIT_MESSAGE = "Estás enviando demasiadas solicitudes. Espera un minuto y vuelve a intentarlo, por favor."
+LOGIN_LOCKED_MESSAGE = "Demasiados intentos fallidos. Espera unos minutos antes de volver a intentarlo."
+TICKET_NOT_FOUND_MESSAGE = "No logramos encontrar tu ticket en el sistema."
 
 UserType = Literal["estudiante", "maestro", "administrativo"]
 
@@ -129,7 +140,59 @@ async def lifespan(_app: FastAPI):
     yield
 
 
-app = FastAPI(title="Intelligent Chatbot API", version="2.0.0", lifespan=lifespan)
+# E-013: en producción no se publica la documentación interactiva ni el esquema OpenAPI
+app = FastAPI(
+    title="Intelligent Chatbot API",
+    version="2.1.0",
+    lifespan=lifespan,
+    docs_url=None if config.IS_PRODUCTION else "/docs",
+    redoc_url=None if config.IS_PRODUCTION else "/redoc",
+    openapi_url=None if config.IS_PRODUCTION else "/openapi.json",
+)
+
+# Rate limiting por IP (slowapi). La IP sale de security.client_ip (respeta TRUSTED_PROXY_HOPS en Render).
+limiter = Limiter(key_func=security.client_ip)
+app.state.limiter = limiter
+
+# E-013: CORS solo para los orígenes de ALLOWED_ORIGINS (vacío = ningún origen externo)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=config.ALLOWED_ORIGINS,
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "PUT", "DELETE"],
+    allow_headers=["Authorization", "Content-Type"],
+)
+
+_DOCS_PATHS = ("/docs", "/redoc", "/openapi.json")
+
+
+@app.middleware("http")
+async def security_headers(request: Request, call_next):
+    """E-013: encabezados de seguridad en todas las respuestas."""
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+    response.headers["Cache-Control"] = "no-store"
+    if not request.url.path.startswith(_DOCS_PATHS):  # Swagger (solo en desarrollo) necesita cargar su JS
+        response.headers["Content-Security-Policy"] = "default-src 'none'; frame-ancestors 'none'"
+    if config.IS_PRODUCTION:
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    return response
+
+
+@app.exception_handler(RateLimitExceeded)
+async def rate_limit_handler(request: Request, _exc: RateLimitExceeded):
+    return JSONResponse(status_code=429, content={"detail": RATE_LIMIT_MESSAGE})
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    """Un 500 nunca devuelve el stack trace ni detalles internos; el detalle queda en el log del servidor."""
+    logger.exception("Error no controlado en %s", request.url.path)
+    _safe_log_error(request.url.path, f"{type(exc).__name__}: {exc}")
+    return JSONResponse(status_code=500, content={"detail": SERVICE_ERROR_MESSAGE})
 
 
 @app.exception_handler(RequestValidationError)
@@ -154,8 +217,12 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 
 
 # ------------------------------------------------------------------ modelos de entrada
+# user_id de la sesión del chat: solo letras, números, guion y guion bajo
+USER_ID_PATTERN = r"^[A-Za-z0-9_-]{1,50}$"
+
+
 class QueryPayload(BaseModel):
-    user_id: str = Field(..., min_length=1, max_length=50)
+    user_id: str = Field(..., pattern=USER_ID_PATTERN)
     user_type: UserType
     query: str = Field(..., min_length=1, max_length=config.MAX_QUERY_LENGTH)
     request_human: bool = False
@@ -166,7 +233,12 @@ class ResolvePayload(BaseModel):
 
 
 class FeedbackPayload(BaseModel):
+    user_id: str = Field(..., pattern=USER_ID_PATTERN)
     helpful: bool
+
+
+class LoginPayload(BaseModel):
+    password: str = Field(..., max_length=256)
 
 
 class ReviewPayload(BaseModel):
@@ -186,22 +258,44 @@ class KnowledgeEntryCreate(KnowledgeEntryUpdate):
     id: str = Field(..., pattern=r"^[a-z0-9_]{2,50}$")
 
 
-def require_admin(x_admin_token: Optional[str] = Header(default=None)) -> None:
-    """Si ADMIN_TOKEN está configurado, exige el encabezado X-Admin-Token."""
-    if config.ADMIN_TOKEN and not hmac.compare_digest(x_admin_token or "", config.ADMIN_TOKEN):
-        raise HTTPException(status_code=401, detail="Token de administrador inválido o ausente.")
+OPERATOR = [Depends(security.require_operator)]
+
+
+def _audit(action: str, target, request: Request) -> None:
+    """Bitácora de acciones del operador. Si falla, no tumba la operación."""
+    try:
+        db.log_operator_action(action, None if target is None else str(target), security.client_ip(request))
+    except Exception:
+        logger.exception("No se pudo registrar la acción del operador.")
+
+
+def _valid_public_id(public_id: str) -> bool:
+    try:
+        return str(uuid.UUID(public_id)) == public_id.lower()
+    except (ValueError, AttributeError):
+        return False
 
 
 # ------------------------------------------------------------------ endpoints generales
 @app.get("/")
 def root():
-    return {"service": "Intelligent Chatbot API", "docs": "/docs", "health": "/health"}
+    return {"service": "Intelligent Chatbot API", "health": "/health"}
 
 
 @app.get("/health")
 def health():
+    """E-011: público y mínimo; el detalle de configuración está en /api/v1/system (operador)."""
+    return {"status": "ok"}
+
+
+@app.get("/api/v1/system", dependencies=OPERATOR)
+def system_details(request: Request):
     return {
         "status": "ok",
+        # Para verificar TRUSTED_PROXY_HOPS en Render: debe coincidir con la IP pública de quien consulta
+        "ip_detectada": security.client_ip(request),
+        "x_forwarded_for_entradas": len([h for h in request.headers.get("x-forwarded-for", "").split(",")
+                                         if h.strip()]),
         "knowledge_base_entries": len(nlp_engine.entries),
         "confidence_threshold": nlp_engine.confidence_threshold,
         "knowledge_base_version": KB_SEED_VERSION,
@@ -215,8 +309,35 @@ def health():
 
 
 # ------------------------------------------------------------------ chat (RF01, RF02, RF04, RF05, RF10)
+# ------------------------------------------------------------------ login del operador (Fase 2)
+@app.post("/api/v1/auth/login")
+@limiter.limit(lambda: config.RATE_LIMIT_LOGIN)
+def login(request: Request, payload: LoginPayload):
+    ip = security.client_ip(request)
+    if db.login_locked_until(ip):
+        _audit("login_bloqueado", None, request)
+        raise HTTPException(status_code=429, detail=LOGIN_LOCKED_MESSAGE)
+    # Fail-closed: sin hash o sin clave configurados, ningún login es válido
+    if security.auth_configured() and security.verify_password(payload.password, config.OPERATOR_PASSWORD_HASH):
+        db.clear_login_failures(ip)
+        _audit("login_ok", None, request)
+        return {"access_token": security.create_token(), "token_type": "bearer",
+                "expires_in": int(config.TOKEN_TTL_HOURS * 3600)}
+    locked = db.register_login_failure(ip, config.LOGIN_MAX_FAILURES, config.LOGIN_LOCK_MINUTES)
+    _audit("login_fallido", None, request)
+    if locked:
+        raise HTTPException(status_code=429, detail=LOGIN_LOCKED_MESSAGE)
+    raise HTTPException(status_code=401, detail=security.INVALID_CREDENTIALS)
+
+
+@app.get("/api/v1/auth/check", dependencies=OPERATOR)
+def check_session():
+    return {"status": "ok"}
+
+
 @app.post("/api/v1/chat")
-def handle_chat(payload: QueryPayload):
+@limiter.limit(lambda: config.RATE_LIMIT_CHAT)
+def handle_chat(request: Request, payload: QueryPayload):
     started = time.perf_counter()
     try:
         error_message = validate_query_text(payload.query)
@@ -258,7 +379,9 @@ def handle_chat(payload: QueryPayload):
         result = strategy_selector.select(confidence, requested_human).resolve(context)
 
         elapsed_ms = round((time.perf_counter() - started) * 1000, 2)
-        ticket_id = db.save_log(
+        public_id = db.new_public_id()
+        db.save_log(
+            public_id=public_id,
             user_id=payload.user_id,
             user_type=payload.user_type,
             query=query,
@@ -270,7 +393,7 @@ def handle_chat(payload: QueryPayload):
             response_time_ms=elapsed_ms,
         )
         return {
-            "ticket_id": ticket_id,
+            "ticket_id": public_id,  # el usuario solo conoce el public_id, nunca el id interno
             "query": query,
             "response": result.message,
             "routed_to": result.routed_to,
@@ -288,16 +411,17 @@ def handle_chat(payload: QueryPayload):
 
 
 # ------------------------------------------------------------------ tickets (RF06, RF07, RF09)
-@app.get("/api/v1/ticket/{ticket_id}")
-def check_ticket(ticket_id: int):
-    ticket = db.get_ticket(ticket_id)
+@app.get("/api/v1/ticket/{public_id}")
+def check_ticket(public_id: str, user_id: str = ""):
+    """IDOR: se consulta por public_id (UUID) y solo si el user_id de la sesión es el dueño."""
+    ticket = db.get_ticket(public_id, user_id) if _valid_public_id(public_id) and user_id else None
     if not ticket:
-        raise HTTPException(status_code=404, detail="No logramos encontrar tu ticket en el sistema.")
+        raise HTTPException(status_code=404, detail=TICKET_NOT_FOUND_MESSAGE)
     return ticket
 
 
-@app.post("/api/v1/ticket/{ticket_id}/resolve")
-def resolve_ticket_endpoint(ticket_id: int, payload: ResolvePayload):
+@app.post("/api/v1/ticket/{ticket_id}/resolve", dependencies=OPERATOR)
+def resolve_ticket_endpoint(ticket_id: int, payload: ResolvePayload, request: Request):
     try:
         outcome = db.update_ticket(ticket_id, payload.manual_response.strip())
     except Exception as exc:
@@ -307,40 +431,50 @@ def resolve_ticket_endpoint(ticket_id: int, payload: ResolvePayload):
         raise HTTPException(status_code=404, detail="El ticket no existe.")
     if outcome == "not_pending":
         raise HTTPException(status_code=409, detail="El ticket ya fue atendido o no está escalado.")
+    _audit("resolver_ticket", ticket_id, request)
     return {"status": "success", "ticket_id": ticket_id}
 
 
-@app.post("/api/v1/ticket/{ticket_id}/feedback")
-def ticket_feedback(ticket_id: int, payload: FeedbackPayload):
+@app.post("/api/v1/ticket/{public_id}/feedback")
+def ticket_feedback(public_id: str, payload: FeedbackPayload):
+    """E-010: solo el dueño del ticket (mismo user_id) puede calificarlo."""
+    if not _valid_public_id(public_id):
+        raise HTTPException(status_code=404, detail="El ticket no existe.")
     try:
-        found = db.save_feedback(ticket_id, payload.helpful)
+        found = db.save_feedback(public_id, payload.user_id, payload.helpful)
     except Exception as exc:
-        _safe_log_error(f"/api/v1/ticket/{ticket_id}/feedback", f"{type(exc).__name__}: {exc}")
+        _safe_log_error("/api/v1/ticket/{public_id}/feedback", f"{type(exc).__name__}: {exc}")
         raise HTTPException(status_code=500, detail="Error al guardar la calificación.")
     if not found:
         raise HTTPException(status_code=404, detail="El ticket no existe.")
     return {"status": "success"}
 
 
-@app.get("/api/v1/tickets/escalated")
+@app.get("/api/v1/tickets/escalated", dependencies=OPERATOR)
 def fetch_escalated_tickets():
     return db.get_escalated_tickets()
 
 
 # ------------------------------------------------------------------ estadísticas y errores (RF08)
-@app.get("/api/v1/stats")
+@app.get("/api/v1/stats", dependencies=OPERATOR)
 def fetch_stats():
     return db.get_user_stats()
 
 
-@app.get("/api/v1/errors")
+@app.get("/api/v1/errors", dependencies=OPERATOR)
 def fetch_errors():
     return db.get_system_errors()
 
 
+@app.get("/api/v1/operator-actions", dependencies=OPERATOR)
+def fetch_operator_actions():
+    return db.get_operator_actions()
+
+
 # ------------------------------------------------------------------ reseñas del lugar (RF11)
 @app.post("/api/v1/reviews")
-def add_review(payload: ReviewPayload):
+@limiter.limit(lambda: config.RATE_LIMIT_REVIEWS)
+def add_review(request: Request, payload: ReviewPayload):
     try:
         review_id = db.save_review(payload.user_type, payload.rating, payload.comment.strip())
     except Exception as exc:
@@ -349,7 +483,7 @@ def add_review(payload: ReviewPayload):
     return {"status": "success", "review_id": review_id}
 
 
-@app.get("/api/v1/reviews")
+@app.get("/api/v1/reviews", dependencies=OPERATOR)
 def fetch_reviews():
     return db.get_reviews()
 
@@ -364,34 +498,38 @@ def _clean_entry_payload(payload: KnowledgeEntryUpdate) -> dict:
     return data
 
 
-@app.get("/api/v1/kb")
+@app.get("/api/v1/kb", dependencies=OPERATOR)
 def list_knowledge_base():
     return db.list_kb_entries()
 
 
-@app.post("/api/v1/kb", status_code=201, dependencies=[Depends(require_admin)])
-def create_knowledge_entry(payload: KnowledgeEntryCreate, background_tasks: BackgroundTasks):
+@app.post("/api/v1/kb", status_code=201, dependencies=OPERATOR)
+def create_knowledge_entry(payload: KnowledgeEntryCreate, background_tasks: BackgroundTasks, request: Request):
     data = _clean_entry_payload(payload)
     try:
         entry = db.create_kb_entry(data)
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc))
     background_tasks.add_task(refresh_knowledge_base_entry, entry["id"])
+    _audit("kb_crear", entry["id"], request)
     return entry
 
 
-@app.put("/api/v1/kb/{kb_id}", dependencies=[Depends(require_admin)])
-def update_knowledge_entry(kb_id: str, payload: KnowledgeEntryUpdate, background_tasks: BackgroundTasks):
+@app.put("/api/v1/kb/{kb_id}", dependencies=OPERATOR)
+def update_knowledge_entry(kb_id: str, payload: KnowledgeEntryUpdate, background_tasks: BackgroundTasks,
+                           request: Request):
     entry = db.update_kb_entry(kb_id, _clean_entry_payload(payload))
     if entry is None:
         raise HTTPException(status_code=404, detail="La entrada no existe.")
     background_tasks.add_task(refresh_knowledge_base_entry, kb_id)
+    _audit("kb_editar", kb_id, request)
     return entry
 
 
-@app.delete("/api/v1/kb/{kb_id}", dependencies=[Depends(require_admin)])
-def delete_knowledge_entry(kb_id: str, background_tasks: BackgroundTasks):
+@app.delete("/api/v1/kb/{kb_id}", dependencies=OPERATOR)
+def delete_knowledge_entry(kb_id: str, background_tasks: BackgroundTasks, request: Request):
     if not db.delete_kb_entry(kb_id):
         raise HTTPException(status_code=404, detail="La entrada no existe.")
     background_tasks.add_task(refresh_knowledge_base_entry, kb_id)
+    _audit("kb_borrar", kb_id, request)
     return {"status": "success", "id": kb_id}

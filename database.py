@@ -9,9 +9,11 @@ La ruta de la base se toma de DATABASE_URL (por defecto ./data/chatbot_audit.db)
 import json
 import logging
 import math
+import hmac
 import os
+import uuid
 from contextlib import contextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Iterable, List, Optional
 
 from sqlalchemy import Column, DateTime, Float, Integer, String, Text, create_engine, event, inspect, text
@@ -66,9 +68,15 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
 
+def new_public_id() -> str:
+    return str(uuid.uuid4())
+
+
 class ConversationLog(Base):
     __tablename__ = "conversation_logs"
     id = Column(Integer, primary_key=True, index=True)
+    # Identificador que ve el usuario (UUID4, no adivinable). El id numérico solo lo usa el operador (IDOR).
+    public_id = Column(String(36), unique=True, index=True, default=new_public_id)
     user_id = Column(String(50), nullable=False)
     user_type = Column(String(50), nullable=False, default="estudiante")
     query = Column(Text, nullable=False)
@@ -110,6 +118,26 @@ class KnowledgeEntry(Base):
     updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
 
 
+class LoginAttempt(Base):
+    """Intentos fallidos de login por IP (bloqueo del lado del servidor; sobrevive reinicios)."""
+    __tablename__ = "login_attempts"
+    ip = Column(String(64), primary_key=True)
+    failures = Column(Integer, nullable=False, default=0)
+    last_failure = Column(DateTime, nullable=True)
+    locked_until = Column(DateTime, nullable=True)
+
+
+class OperatorAction(Base):
+    """Bitácora de acciones del operador: quién, qué, sobre qué ticket/entrada, cuándo y desde qué IP."""
+    __tablename__ = "operator_actions"
+    id = Column(Integer, primary_key=True, index=True)
+    actor = Column(String(50), nullable=False, default="operador")
+    action = Column(String(50), nullable=False, index=True)
+    target = Column(String(100), nullable=True)
+    ip = Column(String(64), nullable=True)
+    timestamp = Column(DateTime, default=utcnow, index=True)
+
+
 class AppMetadata(Base):
     __tablename__ = "app_metadata"
     key = Column(String(100), primary_key=True)
@@ -126,6 +154,7 @@ _MIGRATIONS = {
         "response_time_ms": "FLOAT",
         "feedback": "INTEGER",
         "resolved_at": "DATETIME",
+        "public_id": "VARCHAR(36)",
     },
 }
 
@@ -140,6 +169,21 @@ def init_db() -> None:
                 if name not in existing:
                     connection.execute(text(f"ALTER TABLE {table} ADD COLUMN {name} {ddl}"))
                     logger.info("Migración: columna %s.%s agregada.", table, name)
+    _backfill_public_ids()
+
+
+def _backfill_public_ids() -> None:
+    """Asigna un public_id a los tickets que existían antes de la columna y crea su índice único."""
+    with engine.begin() as connection:
+        rows = connection.execute(text("SELECT id FROM conversation_logs WHERE public_id IS NULL")).fetchall()
+        for (row_id,) in rows:
+            connection.execute(text("UPDATE conversation_logs SET public_id = :pid WHERE id = :id"),
+                               {"pid": new_public_id(), "id": row_id})
+        if rows:
+            logger.info("Migración: public_id asignado a %d tickets existentes.", len(rows))
+        connection.execute(text(
+            "CREATE UNIQUE INDEX IF NOT EXISTS ix_conversation_logs_public_id ON conversation_logs (public_id)"
+        ))
 
 
 @contextmanager
@@ -166,9 +210,11 @@ def _status_for(routed_to: str) -> str:
 # ------------------------------------------------------------------ conversaciones y tickets
 def save_log(user_id: str, user_type: str, query: str, response: str, score: float, routed_to: str,
              method: Optional[str] = None, kb_id: Optional[str] = None,
-             response_time_ms: Optional[float] = None) -> int:
+             response_time_ms: Optional[float] = None, public_id: Optional[str] = None) -> int:
+    """Guarda la interacción y devuelve su id interno. public_id es el que ve el usuario."""
     with session_scope() as session:
         entry = ConversationLog(
+            public_id=public_id or new_public_id(),
             user_id=user_id,
             user_type=user_type,
             query=query,
@@ -198,13 +244,27 @@ def update_ticket(ticket_id: int, manual_response: str) -> str:
         return "resolved"
 
 
-def get_ticket(ticket_id: int) -> Optional[dict]:
+def get_public_id(ticket_id: int) -> Optional[str]:
     with session_scope() as session:
         ticket = session.get(ConversationLog, ticket_id)
+        return ticket.public_id if ticket else None
+
+
+def _owned_ticket(session, public_id: str, user_id: str) -> Optional[ConversationLog]:
+    """Ticket con ese public_id, solo si pertenece a ese user_id (si no, se trata como inexistente)."""
+    ticket = session.query(ConversationLog).filter(ConversationLog.public_id == public_id).first()
+    if ticket is None or not hmac.compare_digest(ticket.user_id.encode("utf-8"), user_id.encode("utf-8")):
+        return None
+    return ticket
+
+
+def get_ticket(public_id: str, user_id: str) -> Optional[dict]:
+    with session_scope() as session:
+        ticket = _owned_ticket(session, public_id, user_id)
         if ticket is None:
             return None
         return {
-            "ticket_id": ticket.id,
+            "ticket_id": ticket.public_id,
             "response": ticket.response,
             "routed_to": ticket.routed_to,
             "status": _status_for(ticket.routed_to),
@@ -233,13 +293,77 @@ def get_escalated_tickets() -> List[dict]:
         ]
 
 
-def save_feedback(ticket_id: int, helpful: bool) -> bool:
+def save_feedback(public_id: str, user_id: str, helpful: bool) -> bool:
     with session_scope() as session:
-        ticket = session.get(ConversationLog, ticket_id)
+        ticket = _owned_ticket(session, public_id, user_id)
         if ticket is None:
             return False
         ticket.feedback = 1 if helpful else -1
         return True
+
+
+# ------------------------------------------------------------------ login del operador (Fase 2)
+def login_locked_until(ip: str, now: Optional[datetime] = None) -> Optional[datetime]:
+    """Hasta cuándo está bloqueada la IP, o None si puede intentar."""
+    now = now or utcnow()
+    with session_scope() as session:
+        attempt = session.get(LoginAttempt, ip)
+        if attempt and attempt.locked_until and attempt.locked_until > now:
+            return attempt.locked_until
+        return None
+
+
+def register_login_failure(ip: str, max_failures: int, lock_minutes: int,
+                           now: Optional[datetime] = None) -> bool:
+    """Suma un intento fallido. Devuelve True si con este intento la IP quedó bloqueada."""
+    now = now or utcnow()
+    window = timedelta(minutes=lock_minutes)
+    with session_scope() as session:
+        attempt = session.get(LoginAttempt, ip)
+        if attempt is None:
+            attempt = LoginAttempt(ip=ip, failures=0)
+            session.add(attempt)
+        # Los fallos viejos (fuera de la ventana) o de un bloqueo ya vencido no cuentan
+        if (attempt.last_failure and now - attempt.last_failure > window) or \
+                (attempt.locked_until and attempt.locked_until <= now):
+            attempt.failures = 0
+            attempt.locked_until = None
+        attempt.failures = (attempt.failures or 0) + 1
+        attempt.last_failure = now
+        if attempt.failures >= max_failures:
+            attempt.locked_until = now + window
+            attempt.failures = 0
+            return True
+        return False
+
+
+def clear_login_failures(ip: str) -> None:
+    with session_scope() as session:
+        attempt = session.get(LoginAttempt, ip)
+        if attempt is not None:
+            session.delete(attempt)
+
+
+def log_operator_action(action: str, target: Optional[str], ip: Optional[str]) -> None:
+    with session_scope() as session:
+        session.add(OperatorAction(action=action[:50], target=(target or None) and str(target)[:100],
+                                   ip=(ip or None) and ip[:64]))
+
+
+def get_operator_actions(limit: int = 100) -> List[dict]:
+    with session_scope() as session:
+        rows = session.query(OperatorAction).order_by(OperatorAction.id.desc()).limit(limit).all()
+        return [
+            {
+                "id": r.id,
+                "actor": r.actor,
+                "action": r.action,
+                "target": r.target,
+                "ip": r.ip,
+                "timestamp": r.timestamp.isoformat() if r.timestamp else None,
+            }
+            for r in rows
+        ]
 
 
 # ------------------------------------------------------------------ estadísticas (RF08)

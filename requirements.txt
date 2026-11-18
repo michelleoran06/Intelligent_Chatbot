@@ -8,3 +8,7 @@ rapidfuzz>=3.0
 streamlit>=1.40
 pandas>=2.0
 requests>=2.31
+# Seguridad (Fase 2 M4): hash de contraseña, tokens firmados y límite de peticiones
+bcrypt>=4.1,<6
+PyJWT>=2.8,<3
+slowapi>=0.1.9,<0.2

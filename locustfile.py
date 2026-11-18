@@ -3,6 +3,8 @@
 Mezcla de consultas tomada del conjunto de prueba: 4 de cada 5 son respondibles y 1 de cada 5
 se escala. Cada consulta escalada crea un ticket, así que conviene correr la prueba contra
 los contenedores locales (docker compose) y no contra la base de producción.
+Desde la Fase 2, /chat acepta 20 peticiones por minuto por IP: para la prueba de carga levanta el
+backend con un límite alto, por ejemplo RATE_LIMIT_CHAT=1000000/minute docker compose up --build.
 
 Uso básico (interfaz web en http://localhost:8089):
     locust -f locustfile.py --host http://127.0.0.1:8000

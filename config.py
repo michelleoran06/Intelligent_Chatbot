@@ -55,12 +55,10 @@ EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "default").strip() or "default"
 # Ejemplos de rechazo (knowledge_base.REJECTION_EXAMPLES): escalan preguntas de otros temas
 USE_REJECTION_EXAMPLES = os.getenv("USE_REJECTION_EXAMPLES", "true").strip().lower() in ("1", "true", "yes", "si", "sí")
 
-# Si se define, los endpoints que modifican la base de conocimiento exigen el encabezado X-Admin-Token
-ADMIN_TOKEN = os.getenv("ADMIN_TOKEN", "")
-
 # ------------------------------------------------------------------ entorno y secretos (Fase 1 M4)
 # "development" (por defecto) o "production". En producción el backend no arranca si faltan secretos.
 ENV = os.getenv("ENV", "development").strip().lower() or "development"
+IS_PRODUCTION = ENV == "production"
 
 # Gemini (Fase 3). La segunda key es opcional: se usa como respaldo cuando exista.
 GEMINI_API_KEY_1 = os.getenv("GEMINI_API_KEY_1", "").strip()
@@ -73,6 +71,24 @@ AUTH_SECRET_KEY = os.getenv("AUTH_SECRET_KEY", "").strip()
 
 # Orígenes permitidos para CORS, separados por comas (Fase 2)
 ALLOWED_ORIGINS = [origin.strip() for origin in os.getenv("ALLOWED_ORIGINS", "").split(",") if origin.strip()]
+
+# Sesión del operador (Fase 2): duración del token, bloqueo por IP y largo mínimo de la contraseña
+TOKEN_TTL_HOURS = _get_float("TOKEN_TTL_HOURS", 8.0)
+LOGIN_MAX_FAILURES = _get_int("LOGIN_MAX_FAILURES", 5)
+LOGIN_LOCK_MINUTES = _get_int("LOGIN_LOCK_MINUTES", 15)
+MIN_PASSWORD_LENGTH = 12
+MIN_SECRET_KEY_LENGTH = 32
+
+# Límites de peticiones por IP (formato de slowapi/limits). Para pruebas de carga locales se pueden subir.
+RATE_LIMIT_CHAT = os.getenv("RATE_LIMIT_CHAT", "20/minute")
+RATE_LIMIT_LOGIN = os.getenv("RATE_LIMIT_LOGIN", "5/minute")
+RATE_LIMIT_REVIEWS = os.getenv("RATE_LIMIT_REVIEWS", "5/minute")
+
+# Detrás del proxy de Render todas las peticiones llegan desde la misma IP interna. TRUSTED_PROXY_HOPS dice
+# cuántos proxies de confianza agregan su entrada al final de X-Forwarded-For; la IP del cliente es la que
+# queda justo antes de ellos. Los valores de la izquierda los puede inventar el cliente, así que no se usan.
+# 0 (por defecto) = no se confía en X-Forwarded-For y se usa la IP de la conexión.
+TRUSTED_PROXY_HOPS = max(0, _get_int("TRUSTED_PROXY_HOPS", 0))
 
 # Variables sin las cuales el backend no debe arrancar en producción (fail-closed).
 # Gemini no está aquí: si falla o no está configurado, el bot sigue respondiendo con el flujo actual.
@@ -91,6 +107,21 @@ def missing_required_vars(environ=None) -> list:
     return [name for name in PRODUCTION_REQUIRED_VARS if not (environ.get(name) or "").strip()]
 
 
+def invalid_secret_vars(environ=None) -> list:
+    """Secretos presentes pero con formato inseguro (solo en producción). Nunca devuelve valores."""
+    environ = os.environ if environ is None else environ
+    if (environ.get("ENV") or "development").strip().lower() != "production":
+        return []
+    invalid = []
+    password_hash = (environ.get("OPERATOR_PASSWORD_HASH") or "").strip()
+    if password_hash and not (password_hash.startswith("$2") and len(password_hash) == 60):
+        invalid.append("OPERATOR_PASSWORD_HASH (no parece un hash bcrypt; genéralo con scripts/hash_password.py)")
+    secret_key = (environ.get("AUTH_SECRET_KEY") or "").strip()
+    if secret_key and len(secret_key) < MIN_SECRET_KEY_LENGTH:
+        invalid.append(f"AUTH_SECRET_KEY (debe tener al menos {MIN_SECRET_KEY_LENGTH} caracteres)")
+    return invalid
+
+
 def validate_config(environ=None) -> None:
     """Fail-closed: en producción, si falta un secreto obligatorio se detiene el arranque.
 
@@ -102,3 +133,6 @@ def validate_config(environ=None) -> None:
             "ENV=production y faltan variables obligatorias: " + ", ".join(missing)
             + ". Configúralas en el entorno (Render) antes de arrancar el backend."
         )
+    invalid = invalid_secret_vars(environ)
+    if invalid:
+        raise ConfigError("ENV=production y hay secretos con formato inseguro: " + "; ".join(invalid) + ".")

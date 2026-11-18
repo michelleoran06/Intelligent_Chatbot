@@ -12,11 +12,19 @@ pytest.importorskip("fastapi")
 import database as db  # noqa: E402
 import main  # noqa: E402
 from input_validation import BLANK_MESSAGE, MALFORMED_MESSAGE  # noqa: E402
-from tests.conftest import ADMIN_HEADERS, FAKE_STORE  # noqa: E402
+from tests.conftest import FAKE_STORE, operator_headers  # noqa: E402
+
+
+USER_ID = "tester_1"
 
 
 def ask(client, query, user_type="estudiante", **extra):
-    return client.post("/api/v1/chat", json={"user_id": "tester_1", "user_type": user_type, "query": query, **extra})
+    return client.post("/api/v1/chat", json={"user_id": USER_ID, "user_type": user_type, "query": query, **extra})
+
+
+def internal_id(public_id):
+    with db.session_scope() as session:
+        return session.query(db.ConversationLog).filter_by(public_id=public_id).one().id
 
 
 # IT-01: pregunta que existe en la base de conocimiento
@@ -38,8 +46,8 @@ def test_it02_unknown_question_is_escalated(client):
     assert res.status_code == 200
     assert body["status"] == "pending_human"
     assert body["routed_to"] == "human"
-    queue = client.get("/api/v1/tickets/escalated").json()
-    assert body["ticket_id"] in [t["id"] for t in queue]
+    queue = client.get("/api/v1/tickets/escalated", headers=operator_headers()).json()
+    assert internal_id(body["ticket_id"]) in [t["id"] for t in queue]
 
 
 # IT-03: cada interacción queda registrada
@@ -56,16 +64,21 @@ def test_it03_interactions_are_logged(client):
 
 # IT-04: el operador responde un ticket
 def test_it04_operator_resolves_ticket(client):
-    ticket_id = ask(client, "¿Puedo reservar mesas para un evento?").json()["ticket_id"]
-    res = client.post(f"/api/v1/ticket/{ticket_id}/resolve", json={"manual_response": "Sí, pregunta en caja."})
+    public_id = ask(client, "¿Puedo reservar mesas para un evento?").json()["ticket_id"]
+    ticket_id = internal_id(public_id)
+    headers = operator_headers()
+    res = client.post(f"/api/v1/ticket/{ticket_id}/resolve", json={"manual_response": "Sí, pregunta en caja."},
+                      headers=headers)
     assert res.status_code == 200
-    assert ticket_id not in [t["id"] for t in client.get("/api/v1/tickets/escalated").json()]
-    ticket = client.get(f"/api/v1/ticket/{ticket_id}").json()
+    assert ticket_id not in [t["id"] for t in client.get("/api/v1/tickets/escalated", headers=headers).json()]
+    ticket = client.get(f"/api/v1/ticket/{public_id}", params={"user_id": USER_ID}).json()
     assert ticket["routed_to"] == "human_resolved"
     assert ticket["response"] == "Sí, pregunta en caja."
     # resolverlo otra vez o resolver uno inexistente no debe decir "success"
-    assert client.post(f"/api/v1/ticket/{ticket_id}/resolve", json={"manual_response": "x"}).status_code == 409
-    assert client.post("/api/v1/ticket/999999/resolve", json={"manual_response": "x"}).status_code == 404
+    assert client.post(f"/api/v1/ticket/{ticket_id}/resolve", json={"manual_response": "x"},
+                       headers=headers).status_code == 409
+    assert client.post("/api/v1/ticket/999999/resolve", json={"manual_response": "x"},
+                       headers=headers).status_code == 404
 
 
 # IT-05: el chat muestra "servicio no disponible" si el backend no responde
@@ -84,7 +97,7 @@ def test_it05_frontend_shows_service_unavailable(monkeypatch):
 def test_it06_place_review(client):
     res = client.post("/api/v1/reviews", json={"user_type": "maestro", "rating": 4, "comment": "Muy rico"})
     assert res.status_code == 200
-    reviews = client.get("/api/v1/reviews").json()
+    reviews = client.get("/api/v1/reviews", headers=operator_headers()).json()
     assert reviews[0]["rating"] == 4 and reviews[0]["comment"] == "Muy rico"
     bad = client.post("/api/v1/reviews", json={"user_type": "maestro", "rating": 9})
     assert bad.status_code == 422
@@ -132,9 +145,10 @@ def test_rf10_user_requests_operator(client):
 # RF09: calificación de una respuesta
 def test_rf09_response_feedback(client):
     ticket_id = ask(client, "¿Tienen postres?").json()["ticket_id"]
-    assert client.post(f"/api/v1/ticket/{ticket_id}/feedback", json={"helpful": True}).status_code == 200
-    assert client.post("/api/v1/ticket/999999/feedback", json={"helpful": False}).status_code == 404
-    overall = client.get("/api/v1/stats").json()["overall"]
+    vote = {"user_id": USER_ID, "helpful": True}
+    assert client.post(f"/api/v1/ticket/{ticket_id}/feedback", json=vote).status_code == 200
+    assert client.post("/api/v1/ticket/999999/feedback", json=vote).status_code == 404
+    overall = client.get("/api/v1/stats", headers=operator_headers()).json()["overall"]
     assert overall["positive_feedback"] == 1
 
 
@@ -142,7 +156,7 @@ def test_rf09_response_feedback(client):
 def test_rf08_stats(client):
     ask(client, "¿Venden pizza?")
     ask(client, "¿Cuál es la capital de Francia?")
-    stats = client.get("/api/v1/stats").json()
+    stats = client.get("/api/v1/stats", headers=operator_headers()).json()
     assert stats["overall"]["total"] == 2
     assert stats["overall"]["escalation_rate"] == 0.5
     assert stats["by_user_type"][0]["user_type"] == "estudiante"
@@ -154,7 +168,7 @@ def test_internal_error_returns_friendly_500(client):
     res = ask(client, "¿Tienen jugos naturales de naranja?")
     assert res.status_code == 500
     assert "Intenta de nuevo" in res.json()["detail"]
-    errors = client.get("/api/v1/errors").json()
+    errors = client.get("/api/v1/errors", headers=operator_headers()).json()
     assert any(e["endpoint"] == "/api/v1/chat" for e in errors)
 
 
@@ -167,21 +181,22 @@ def test_rf03_knowledge_base_crud(client):
         "questions": ["¿Tienen wifi en la cafetería?"],
         "keywords": ["wifi", "internet"],
     }
+    headers = operator_headers()
     assert client.post("/api/v1/kb", json=entry).status_code == 401  # sin token
-    assert client.post("/api/v1/kb", json=entry, headers=ADMIN_HEADERS).status_code == 201
-    assert client.post("/api/v1/kb", json=entry, headers=ADMIN_HEADERS).status_code == 409
+    assert client.post("/api/v1/kb", json=entry, headers=headers).status_code == 201
+    assert client.post("/api/v1/kb", json=entry, headers=headers).status_code == 409
 
     body = ask(client, "¿Tienen wifi en la cafetería?").json()
     assert body["status"] == "answered" and "wifi" in body["response"]
 
     update = {**entry, "answer": "Sí, la red de la facultad llega a la cafetería."}
     update.pop("id")
-    assert client.put("/api/v1/kb/wifi_cafeteria", json=update, headers=ADMIN_HEADERS).status_code == 200
+    assert client.put("/api/v1/kb/wifi_cafeteria", json=update, headers=headers).status_code == 200
     main.nlp_engine.clear_cache()
     assert "red de la facultad" in ask(client, "¿Tienen wifi en la cafetería?").json()["response"]
 
-    assert client.delete("/api/v1/kb/wifi_cafeteria", headers=ADMIN_HEADERS).status_code == 200
-    assert client.delete("/api/v1/kb/wifi_cafeteria", headers=ADMIN_HEADERS).status_code == 404
+    assert client.delete("/api/v1/kb/wifi_cafeteria", headers=headers).status_code == 200
+    assert client.delete("/api/v1/kb/wifi_cafeteria", headers=headers).status_code == 404
     assert ask(client, "¿Tienen wifi en la cafetería?").json()["status"] == "pending_human"
 
 
@@ -207,6 +222,7 @@ def test_kb_seed_version_sync(client):
 
 
 def test_health(client):
-    body = client.get("/health").json()
+    assert client.get("/health").json() == {"status": "ok"}  # E-011: sin datos de configuración
+    body = client.get("/api/v1/system", headers=operator_headers()).json()
     assert body["status"] == "ok" and body["knowledge_base_entries"] >= 14
     assert body["knowledge_base_version"]
