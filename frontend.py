@@ -2,10 +2,13 @@
 
 La dirección del backend se lee de la variable de entorno BACKEND_URL
 (en Streamlit Community Cloud se define en los "Secrets" de la app).
+
+Fase 2 (M4): cada sesión tiene un identificador aleatorio (user_id) y los tickets se consultan y
+califican por su public_id (UUID) junto con ese user_id; el backend solo responde al dueño del ticket.
 """
 import os
-import random
 import time
+import uuid
 
 import requests
 import streamlit as st
@@ -54,28 +57,30 @@ def init_state() -> None:
         "messages": [],
         "review_submitted": False,
         "pending_tickets": [],
-        "user_id_num": random.randint(1000, 9999),
+        # 12 caracteres aleatorios (antes 4 dígitos, fáciles de adivinar: E-018)
+        "session_token": uuid.uuid4().hex[:12],
     }
     for key, value in defaults.items():
         if key not in st.session_state:
             st.session_state[key] = value
 
 
-def add_message(role: str, content: str, ticket_id=None, allow_feedback: bool = False) -> dict:
-    message = {"role": role, "content": content, "ticket_id": ticket_id, "allow_feedback": allow_feedback}
+def add_message(role: str, content: str, ticket_id=None, allow_feedback: bool = False, user_id=None) -> dict:
+    message = {"role": role, "content": content, "ticket_id": ticket_id, "allow_feedback": allow_feedback,
+               "user_id": user_id}
     st.session_state.messages.append(message)
     return message
 
 
 # ------------------------------------------------------------------ comunicación con la API
-def send_feedback(ticket_id: int, widget_key: str) -> None:
-    """RF09: guarda la calificación 👍/👎 de una respuesta del bot."""
+def send_feedback(ticket_id: str, user_id: str, widget_key: str) -> None:
+    """RF09: guarda la calificación 👍/👎 de una respuesta del bot (solo el dueño del ticket, E-010)."""
     value = st.session_state.get(widget_key)
     if value is None:
         return
     try:
         res = requests.post(f"{BASE_URL}/api/v1/ticket/{ticket_id}/feedback",
-                            json={"helpful": value == 1}, timeout=30)
+                            json={"user_id": user_id, "helpful": value == 1}, timeout=30)
         if res.status_code == 200:
             st.toast("¡Gracias por calificar la respuesta!", icon="👍")
         else:
@@ -84,8 +89,8 @@ def send_feedback(ticket_id: int, widget_key: str) -> None:
         st.toast("No se pudo guardar tu calificación (sin conexión).", icon="⚠️")
 
 
-def fetch_ticket(ticket_id: int):
-    res = requests.get(f"{BASE_URL}/api/v1/ticket/{ticket_id}", timeout=5)
+def fetch_ticket(ticket_id: str, user_id: str):
+    res = requests.get(f"{BASE_URL}/api/v1/ticket/{ticket_id}", params={"user_id": user_id}, timeout=5)
     return res.json() if res.status_code == 200 else None
 
 
@@ -94,35 +99,36 @@ def render_message(message: dict) -> None:
         st.markdown(message["content"])
         if message.get("allow_feedback") and message.get("ticket_id"):
             key = f"feedback_{message['ticket_id']}"
-            st.feedback("thumbs", key=key, on_change=send_feedback, args=(message["ticket_id"], key))
+            st.feedback("thumbs", key=key, on_change=send_feedback,
+                        args=(message["ticket_id"], message.get("user_id") or "", key))
 
 
-def show_assistant(content: str, ticket_id=None, allow_feedback: bool = False) -> None:
-    render_message(add_message("assistant", content, ticket_id, allow_feedback))
+def show_assistant(content: str, ticket_id=None, allow_feedback: bool = False, user_id=None) -> None:
+    render_message(add_message("assistant", content, ticket_id, allow_feedback, user_id))
 
 
 def check_pending_tickets() -> None:
     """Muestra respuestas de operadores que llegaron después de que terminó la espera."""
     still_pending = []
-    for ticket_id in st.session_state.pending_tickets:
+    for pending in st.session_state.pending_tickets:
         try:
-            data = fetch_ticket(ticket_id)
+            data = fetch_ticket(pending["ticket_id"], pending["user_id"])
         except (requests.exceptions.RequestException, ValueError):
-            still_pending.append(ticket_id)
+            still_pending.append(pending)
             continue
         if data and data.get("routed_to") == "human_resolved":
             add_message("assistant", f"{OPERATOR_PREFIX}{data.get('response', '')}")
         else:
-            still_pending.append(ticket_id)
+            still_pending.append(pending)
     st.session_state.pending_tickets = still_pending
 
 
-def wait_for_operator(ticket_id: int) -> bool:
+def wait_for_operator(ticket_id: str, user_id: str) -> bool:
     with st.spinner("Esperando a que un operador atienda tu caso (esto puede tardar unos segundos)..."):
         for _ in range(POLL_ATTEMPTS):
             time.sleep(POLL_INTERVAL_SECONDS)
             try:
-                data = fetch_ticket(ticket_id)
+                data = fetch_ticket(ticket_id, user_id)
             except (requests.exceptions.RequestException, ValueError):
                 continue
             if data and data.get("routed_to") == "human_resolved":
@@ -163,11 +169,12 @@ def send_question(prompt: str, user_type: str, user_id: str, request_human: bool
     ticket_id = data.get("ticket_id")
     routed_to = data.get("routed_to")
     show_assistant(data.get("response", ""), ticket_id=ticket_id,
-                   allow_feedback=routed_to == "bot" and ticket_id is not None)
+                   allow_feedback=routed_to == "bot" and ticket_id is not None, user_id=user_id)
 
     if routed_to == "human" and ticket_id is not None:
-        if not wait_for_operator(ticket_id):
-            st.session_state.pending_tickets.append(ticket_id)
+        if not wait_for_operator(ticket_id, user_id):
+            # se guarda con su user_id: si la persona cambia de perfil, el ticket sigue siendo suyo
+            st.session_state.pending_tickets.append({"ticket_id": ticket_id, "user_id": user_id})
             show_assistant(f"*{MSG_OPERATORS_BUSY}*")
 
 
@@ -229,7 +236,7 @@ with st.sidebar:
     else:
         st.success("✨ ¡Ya evaluaste el servicio! Limpia el chat si deseas enviar otra reseña.")
 
-session_user_id = f"{user_type}_{st.session_state.user_id_num}"
+session_user_id = f"{user_type}_{st.session_state.session_token}"
 
 st.markdown(
     '<div class="chat-header"><h2>☕ Asistente de Cafetería FI</h2>'
