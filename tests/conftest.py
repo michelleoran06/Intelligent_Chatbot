@@ -8,6 +8,9 @@ import tempfile
 _TMP_DIR = tempfile.mkdtemp(prefix="chatbot_tests_")
 os.environ["DATABASE_URL"] = f"sqlite:///{_TMP_DIR}/test_chatbot.db"
 os.environ["CHROMA_PATH"] = os.path.join(_TMP_DIR, "chroma")
+# Las pruebas nunca llaman a Gemini real (ni gastan cuota): se usa un cliente falso (tests/test_llm.py)
+for _name in ("GEMINI_API_KEY_1", "GEMINI_API_KEY_2", "GEMINI_MODEL"):
+    os.environ[_name] = ""
 # Credenciales SOLO de prueba (no son de ningún entorno real). El hash se calcula aquí mismo.
 TEST_PASSWORD = "contrasena-de-prueba-123"
 TEST_SECRET_KEY = "clave-de-prueba-para-firmar-tokens-0123456789"
@@ -60,4 +63,5 @@ def clean_state():
         session.query(db.OperatorAction).delete()
     main.nlp_engine.clear_cache()
     main.limiter.reset()
+    main.llm.clear_cache()
     yield

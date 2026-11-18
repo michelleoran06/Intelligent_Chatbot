@@ -64,6 +64,18 @@ IS_PRODUCTION = ENV == "production"
 GEMINI_API_KEY_1 = os.getenv("GEMINI_API_KEY_1", "").strip()
 GEMINI_API_KEY_2 = os.getenv("GEMINI_API_KEY_2", "").strip()
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "").strip()
+# Fase 3: timeout por llamada (s), respuestas guardadas en memoria y presupuesto de "thinking"
+# (vacío = el valor por defecto del modelo; 0 lo apaga en los modelos Flash que lo permiten)
+# La API de Gemini rechaza (400) cualquier timeout menor a 10 s (E-026)
+GEMINI_TIMEOUT_SECONDS = _get_float("GEMINI_TIMEOUT_SECONDS", 15.0)
+LLM_CACHE_SIZE = _get_int("LLM_CACHE_SIZE", 256)
+_thinking = os.getenv("GEMINI_THINKING_BUDGET", "").strip()
+GEMINI_THINKING_BUDGET = int(_thinking) if _thinking.lstrip("-").isdigit() else None
+# Entradas de la base de conocimiento que recibe Gemini como contexto (top-k de ChromaDB)
+LLM_CONTEXT_ENTRIES = _get_int("LLM_CONTEXT_ENTRIES", 3)
+# Fuera de dominio claro: si la mejor confianza S es menor que este valor, se responde que solo se
+# atienden temas de la cafetería (sin Gemini y sin escalar). 0 = solo se usan los ejemplos de rechazo.
+OUT_OF_SCOPE_CONFIDENCE = _get_float("OUT_OF_SCOPE_CONFIDENCE", 0.0)
 
 # Autenticación del operador (Fase 2): hash bcrypt de la contraseña y clave para firmar tokens
 OPERATOR_PASSWORD_HASH = os.getenv("OPERATOR_PASSWORD_HASH", "").strip()

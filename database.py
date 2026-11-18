@@ -87,6 +87,11 @@ class ConversationLog(Base):
     kb_id = Column(String(50), nullable=True)
     response_time_ms = Column(Float, nullable=True)
     feedback = Column(Integer, nullable=True)  # 1 = útil, -1 = no útil (RF09)
+    # Fase 3: ruta de la respuesta ("llm", "retrieval", "out_of_scope", "human"), key de Gemini que
+    # respondió ("key1"/"key2", nunca la key) y latencia de Gemini
+    route = Column(String(20), nullable=True)
+    llm_key = Column(String(10), nullable=True)
+    llm_latency_ms = Column(Float, nullable=True)
     timestamp = Column(DateTime, default=utcnow)
     resolved_at = Column(DateTime, nullable=True)
 
@@ -155,6 +160,9 @@ _MIGRATIONS = {
         "feedback": "INTEGER",
         "resolved_at": "DATETIME",
         "public_id": "VARCHAR(36)",
+        "route": "VARCHAR(20)",
+        "llm_key": "VARCHAR(10)",
+        "llm_latency_ms": "FLOAT",
     },
 }
 
@@ -210,7 +218,9 @@ def _status_for(routed_to: str) -> str:
 # ------------------------------------------------------------------ conversaciones y tickets
 def save_log(user_id: str, user_type: str, query: str, response: str, score: float, routed_to: str,
              method: Optional[str] = None, kb_id: Optional[str] = None,
-             response_time_ms: Optional[float] = None, public_id: Optional[str] = None) -> int:
+             response_time_ms: Optional[float] = None, public_id: Optional[str] = None,
+             route: Optional[str] = None, llm_key: Optional[str] = None,
+             llm_latency_ms: Optional[float] = None) -> int:
     """Guarda la interacción y devuelve su id interno. public_id es el que ve el usuario."""
     with session_scope() as session:
         entry = ConversationLog(
@@ -224,6 +234,9 @@ def save_log(user_id: str, user_type: str, query: str, response: str, score: flo
             method=method,
             kb_id=kb_id,
             response_time_ms=response_time_ms,
+            route=route,
+            llm_key=llm_key,
+            llm_latency_ms=llm_latency_ms,
         )
         session.add(entry)
         session.flush()

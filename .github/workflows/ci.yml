@@ -34,6 +34,9 @@ jobs:
       - name: Pruebas de seguridad, configuración e interfaces (Fase 2)
         run: pytest tests/test_security.py tests/test_config.py tests/test_interfaces.py -v
 
+      - name: Gemini simulado (Fase 3, no gasta cuota)
+        run: pytest tests/test_llm.py -v
+
       - name: Integración con ChromaDB real
         run: pytest -m chroma -v
 

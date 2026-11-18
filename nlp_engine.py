@@ -157,6 +157,18 @@ class NLPEngine:
         hits = self.store.query(normalized_query, self.n_results)
         return [(kb_id, float(distance)) for kb_id, distance in hits if kb_id in known or kb_id == REJECTION_ID]
 
+    @staticmethod
+    def context_ids(result: RetrievalResult, k: int = 3) -> List[str]:
+        """Ids de las entradas que recibe Gemini (Fase 3): top-k semántico más la elegida, sin repetir.
+
+        Si la elegida vino por palabras clave y no está en el top-k semántico, también se agrega, así
+        Gemini decide con ella en vez de responder con la confianza fija de la keyword (E-001).
+        """
+        ids = list(result.candidates[:k])
+        if result.kb_id and result.kb_id not in ids:
+            ids.append(result.kb_id)
+        return ids
+
     def retrieve(self, query: str) -> RetrievalResult:
         key = normalize_text(query)
         with self._lock:
