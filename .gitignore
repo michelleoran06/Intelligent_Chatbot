@@ -1,5 +1,6 @@
 # Secretos: nunca subir .env al repositorio
 .env
+.streamlit/secrets.toml
 
 # Datos locales
 data/

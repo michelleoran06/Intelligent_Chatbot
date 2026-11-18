@@ -38,6 +38,9 @@ from patterns import (
 from vector_store import get_store
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+
+# Fail-closed (Fase 1): en producción no se arranca sin los secretos obligatorios
+config.validate_config()
 logger = logging.getLogger("ChatbotAPI")
 
 SERVICE_ERROR_MESSAGE = "Problema técnico interno. Intenta de nuevo en unos minutos."

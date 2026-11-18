@@ -114,6 +114,7 @@ Endpoints protegidos sin token o con token expirado o alterado devuelven 401; el
 
 ## Fase 4 — Cobertura y CI (rama `fase-4-ci`)
 - Agregar `pytest-cov` a `requirements.txt`; el CI corre `pytest --cov --cov-report=xml --cov-fail-under=<valor actual redondeado>`.
+  - **Cobertura de referencia (Fase 0): 62% con 64 pruebas.** Es el mínimo para `--cov-fail-under` (no puede bajar de 62).
 - Publicar el reporte de cobertura como artefacto del workflow.
 - Agregar al CI un paso con `pip-audit` (dependencias vulnerables) y `bandit` (análisis de seguridad del código).
 - Los secretos del CI van en GitHub Secrets; las pruebas usan valores falsos.
@@ -122,6 +123,7 @@ Endpoints protegidos sin token o con token expirado o alterado devuelven 401; el
 
 ## Fase 5 — Despliegue y verificación
 - Lista exacta de variables que la usuaria debe configurar en Render y en Streamlit Cloud.
+- **Obligatorio:** poner `ENV=production` en Render (junto con `OPERATOR_PASSWORD_HASH`, `AUTH_SECRET_KEY` y `ALLOWED_ORIGINS`, o el backend no arranca) y verificar que `/docs`, `/redoc` y `/openapi.json` ya no respondan (E-013).
 - Smoke test contra producción: login correcto e incorrecto, un endpoint sin token (debe dar 401), una pregunta normal, la pregunta de la colegiatura y un intento de *prompt injection*.
 - Actualizar el manual de usuario (sección del operador: login) y el `README`.
 - Dejar la bitácora completa con evidencia en cada fila.
