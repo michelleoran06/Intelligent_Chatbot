@@ -60,7 +60,7 @@ def make_client(script, keys=(("key1", FAKE_KEY_1), ("key2", FAKE_KEY_2)), model
     def factory(api_key, _timeout):
         return type("Client", (), {"models": FakeModels(script, calls, label_by_key[api_key])})()
 
-    client = llm_client.GeminiClient(keys=keys, model=model, timeout_seconds=8, retries=1, client_factory=factory)
+    client = llm_client.GeminiClient(keys=keys, model=model, timeout_seconds=15, retries=1, client_factory=factory)
     return client, calls
 
 
@@ -262,3 +262,13 @@ def test_e001_colegiatura_con_gemini_se_escala_y_no_da_el_menu(client, with_llm)
     assert body["status"] == "pending_human" and body["route"] == "human"
     assert "$" not in body["response"]
     assert "<pregunta>\n¿Cuánto cuesta la colegiatura?\n</pregunta>" in calls[-1]["contents"]
+
+
+def test_e026_timeout_nunca_menor_al_minimo_de_la_api():
+    # La API respondió 400 "Minimum allowed deadline is 10s" con el timeout anterior de 8 s
+    seen = []
+    client = llm_client.GeminiClient(keys=[("key1", FAKE_KEY_1)], model="modelo-falso", timeout_seconds=8,
+                                     client_factory=lambda key, timeout: seen.append(timeout) or object())
+    client._client("key1", FAKE_KEY_1)
+    assert seen == [llm_client.MIN_TIMEOUT_SECONDS]
+    assert main.config.GEMINI_TIMEOUT_SECONDS >= llm_client.MIN_TIMEOUT_SECONDS

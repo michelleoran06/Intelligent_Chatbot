@@ -107,7 +107,7 @@ Los datos se guardan en el volumen `chatbot_data`, así que sobreviven al reempl
 | `TRUSTED_PROXY_HOPS` | 0 | Proxies de confianza al final de `X-Forwarded-For` para obtener la IP real del cliente. 0 en local y Docker; en Render, ver la sección 9 |
 | `GEMINI_API_KEY_1` / `GEMINI_API_KEY_2` | (vacío) | Keys de Gemini (Google AI Studio). La segunda es de respaldo: si la primera agota su cuota o falla, se usa la otra. Vacías = el bot responde solo con la recuperación (regla de M3). Nunca se escriben en el código ni en los logs |
 | `GEMINI_MODEL` | (vacío) | Modelo de Gemini (Flash). Vacío = Gemini desactivado |
-| `GEMINI_TIMEOUT_SECONDS` | 8 | Tiempo máximo por llamada a Gemini |
+| `GEMINI_TIMEOUT_SECONDS` | 15 | Tiempo máximo por llamada a Gemini (mínimo 10: la API rechaza valores menores) |
 | `GEMINI_THINKING_BUDGET` | (vacío) | Presupuesto de razonamiento del modelo; 0 lo apaga en los Flash que lo permiten (más rápido) |
 | `LLM_CACHE_SIZE` | 256 | Respuestas de Gemini guardadas en memoria (misma pregunta y mismas entradas = sin gastar cuota) |
 | `LLM_CONTEXT_ENTRIES` | 3 | Entradas de la base de conocimiento que recibe Gemini (top-k de ChromaDB) |

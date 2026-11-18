@@ -4,7 +4,7 @@
 - Dos keys: GEMINI_API_KEY_1 y, si existe, GEMINI_API_KEY_2. Ante un 429, cuota agotada o cualquier
   error con una key, se usa la otra. Si fallan las dos, `answer()` devuelve None y el backend sigue
   con el flujo de recuperación sin Gemini: el bot nunca se queda sin responder.
-- Timeout corto (GEMINI_TIMEOUT_SECONDS) y un solo reintento por key ante errores pasajeros.
+- Timeout (GEMINI_TIMEOUT_SECONDS, mínimo 10 s porque la API rechaza menos) y un solo reintento por key ante errores pasajeros.
 - Las keys nunca se registran: los logs solo dicen "key1"/"key2", el tipo de error y su código.
 - Gemini responde en JSON: {"source_id": "<id de la entrada usada>" | "NO_SE", "answer": "..."}.
   Si cita una entrada que no estaba en el contexto, la respuesta se descarta (anti-alucinación).
@@ -22,6 +22,7 @@ import config
 logger = logging.getLogger("LLMClient")
 
 NO_SE = "NO_SE"
+MIN_TIMEOUT_SECONDS = 10.0  # la API responde 400 si el timeout es menor (E-026)
 MAX_ANSWER_CHARS = 1200
 
 SYSTEM_PROMPT = """Eres el asistente de la cafetería de la Facultad de Ingeniería.
@@ -90,12 +91,12 @@ def _default_client_factory(api_key: str, timeout_seconds: float):
 
 
 class GeminiClient:
-    def __init__(self, keys: Sequence[Tuple[str, str]], model: str, timeout_seconds: float = 8.0,
+    def __init__(self, keys: Sequence[Tuple[str, str]], model: str, timeout_seconds: float = 15.0,
                  retries: int = 1, cache_size: int = 256, thinking_budget: Optional[int] = None,
                  client_factory: Optional[Callable] = None):
         self._keys = [(label, key) for label, key in keys if key]
         self.model = model
-        self.timeout_seconds = timeout_seconds
+        self.timeout_seconds = max(MIN_TIMEOUT_SECONDS, float(timeout_seconds))
         self.retries = max(0, retries)
         self.thinking_budget = thinking_budget
         self._client_factory = client_factory or _default_client_factory

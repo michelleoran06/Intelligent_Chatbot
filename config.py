@@ -66,7 +66,8 @@ GEMINI_API_KEY_2 = os.getenv("GEMINI_API_KEY_2", "").strip()
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "").strip()
 # Fase 3: timeout por llamada (s), respuestas guardadas en memoria y presupuesto de "thinking"
 # (vacío = el valor por defecto del modelo; 0 lo apaga en los modelos Flash que lo permiten)
-GEMINI_TIMEOUT_SECONDS = _get_float("GEMINI_TIMEOUT_SECONDS", 8.0)
+# La API de Gemini rechaza (400) cualquier timeout menor a 10 s (E-026)
+GEMINI_TIMEOUT_SECONDS = _get_float("GEMINI_TIMEOUT_SECONDS", 15.0)
 LLM_CACHE_SIZE = _get_int("LLM_CACHE_SIZE", 256)
 _thinking = os.getenv("GEMINI_THINKING_BUDGET", "").strip()
 GEMINI_THINKING_BUDGET = int(_thinking) if _thinking.lstrip("-").isdigit() else None
