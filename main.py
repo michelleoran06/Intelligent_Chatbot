@@ -39,6 +39,7 @@ from patterns import (
     ROUTED_BOT,
     STATUS_ANSWERED,
     BotResponseStrategy,
+    ClarifyStrategy,
     ConversationContext,
     EscalationSubject,
     HumanFallbackStrategy,
@@ -77,6 +78,7 @@ fallback_strategy = HumanFallbackStrategy(escalation_subject)
 strategy_selector = StrategySelector(bot_strategy, fallback_strategy, config.CONFIDENCE_THRESHOLD)
 llm_strategy = LLMResponseStrategy()
 out_of_scope_strategy = OutOfScopeStrategy()
+clarify_strategy = ClarifyStrategy(max_in_a_row=config.CLARIFY_MAX_IN_A_ROW)
 
 # Fase 3: Gemini con dos keys y failover. Sin keys o sin modelo, el chat usa solo la recuperación.
 llm = llm_client.from_config()
@@ -347,12 +349,13 @@ def check_session():
     return {"status": "ok"}
 
 
-def _decide(query: str, normalized: str, retrieval):
+def _decide(query: str, normalized: str, retrieval, history=()):
     """Fase 3 (rag_pipeline.decide): devuelve (estrategia, ruta, respuesta de Gemini o None)."""
     decision = rag_pipeline.decide(query, normalized, retrieval, nlp_engine, llm,
-                                   config.OUT_OF_SCOPE_CONFIDENCE, config.LLM_CONTEXT_ENTRIES)
+                                   config.OUT_OF_SCOPE_CONFIDENCE, config.LLM_CONTEXT_ENTRIES, history)
     strategy = {
         rag_pipeline.ROUTE_OUT_OF_SCOPE: out_of_scope_strategy,
+        rag_pipeline.ROUTE_CLARIFY: clarify_strategy,
         rag_pipeline.ROUTE_LLM: llm_strategy,
         rag_pipeline.ROUTE_RETRIEVAL: bot_strategy,
         rag_pipeline.ROUTE_HUMAN: fallback_strategy,
@@ -386,18 +389,23 @@ def handle_chat(request: Request, payload: QueryPayload):
 
         requested_human = payload.request_human or is_human_request(normalized)
         llm_answer = None
+        streak = 0
         if requested_human:
             candidate, confidence, kb_id, method = "", 0.0, None, "user_request"
             strategy, route = fallback_strategy, "human"
         else:
-            retrieval = nlp_engine.retrieve(query)
+            # E-027: últimos turnos de esta sesión (de la base, no del navegador) para entender seguimientos
+            history = db.get_recent_turns(payload.user_id, config.LLM_HISTORY_TURNS, config.LLM_HISTORY_MINUTES)
+            streak = db.clarify_streak(history)
+            retrieval = nlp_engine.retrieve(query, previous=history[-1]["user"] if history else None)
             candidate, confidence = retrieval.answer, retrieval.confidence
             kb_id, method = retrieval.kb_id, retrieval.method
-            strategy, route, llm_answer = _decide(query, normalized, retrieval)
-            if llm_answer is not None and not llm_answer.is_no_se:
-                candidate, kb_id, method = llm_answer.text, llm_answer.source_id, "llm"
-            elif llm_answer is not None:
-                method = "llm_no_se"
+            strategy, route, llm_answer = _decide(query, normalized, retrieval, history)
+            if llm_answer is not None:
+                method = {"responder": "llm", "aclarar": "llm_clarify", "fuera_de_tema": "llm_out_of_scope",
+                          "escalar": "llm_no_se"}.get(llm_answer.tipo, "llm")
+                candidate = llm_answer.text
+                kb_id = llm_answer.source_id
 
         context = ConversationContext(
             user_id=payload.user_id,
@@ -407,6 +415,7 @@ def handle_chat(request: Request, payload: QueryPayload):
             confidence=confidence,
             kb_id=kb_id,
             requested_human=requested_human,
+            clarify_streak=streak,
         )
         result = strategy.resolve(context)
         if result.routed_to != ROUTED_BOT:

@@ -18,7 +18,7 @@ error y responda HTTP 500 (Sección 9), y nunca quedan guardados en la caché.
 """
 import threading
 from collections import OrderedDict
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Dict, FrozenSet, Iterable, List, Optional, Tuple
 
 from input_validation import normalize_text
@@ -169,7 +169,18 @@ class NLPEngine:
             ids.append(result.kb_id)
         return ids
 
-    def retrieve(self, query: str) -> RetrievalResult:
+    def retrieve(self, query: str, previous: Optional[str] = None) -> RetrievalResult:
+        """Recupera con el mensaje actual. Con `previous` (pregunta anterior de la sesión, E-027) también
+        busca con ambos textos juntos y antepone esos candidatos, así "y el sábado" trae horarios.
+        La confianza y la entrada elegida siguen siendo las del mensaje actual (respaldo de M3)."""
+        result = self._retrieve_one(query)
+        if not previous:
+            return result
+        combined = self._retrieve_one(f"{previous} {query}")
+        merged = tuple(dict.fromkeys(combined.candidates + result.candidates))
+        return replace(result, candidates=merged)
+
+    def _retrieve_one(self, query: str) -> RetrievalResult:
         key = normalize_text(query)
         with self._lock:
             cached = self._cache.get(key)

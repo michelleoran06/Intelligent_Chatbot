@@ -243,6 +243,33 @@ def save_log(user_id: str, user_type: str, query: str, response: str, score: flo
         return entry.id
 
 
+def get_recent_turns(user_id: str, limit: int = 3, minutes: int = 30) -> List[dict]:
+    """E-027: últimos turnos de la MISMA sesión (user_id aleatorio por sesión), del más viejo al más nuevo.
+
+    Solo los de los últimos `minutes` minutos, para no mezclar conversaciones viejas. Se leen de la base
+    del backend, no de lo que mande el navegador, así nadie puede inventar turnos del bot."""
+    if not user_id or limit <= 0:
+        return []
+    since = utcnow() - timedelta(minutes=minutes)
+    with session_scope() as session:
+        rows = (session.query(ConversationLog)
+                .filter(ConversationLog.user_id == user_id, ConversationLog.timestamp >= since)
+                .order_by(ConversationLog.id.desc())
+                .limit(limit)
+                .all())
+        return [{"user": row.query, "bot": row.response, "route": row.route or ""} for row in reversed(rows)]
+
+
+def clarify_streak(turns: List[dict]) -> int:
+    """Cuántas de las últimas respuestas seguidas fueron pedir aclarar (anti-bucle, E-027)."""
+    streak = 0
+    for turn in reversed(turns):
+        if turn.get("route") != "clarify":
+            break
+        streak += 1
+    return streak
+
+
 def update_ticket(ticket_id: int, manual_response: str) -> str:
     """Devuelve 'resolved', 'not_found' o 'not_pending'."""
     with session_scope() as session:

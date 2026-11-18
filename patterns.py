@@ -2,7 +2,8 @@
 
 - Strategy: ResponseStrategy.resolve(context) -> ResponseResult, con BotResponseStrategy,
   LLMResponseStrategy (respuesta redactada por Gemini, Fase 3), OutOfScopeStrategy (pregunta de otro
-  tema: se avisa sin escalar) y HumanFallbackStrategy. StrategySelector aplica la regla S >= umbral
+  tema: se avisa sin escalar), ClarifyStrategy (no se entiende: se pide reescribir, sin ticket, E-027)
+  y HumanFallbackStrategy (la única que crea ticket). StrategySelector aplica la regla S >= umbral
   cuando Gemini no está disponible.
 - Observer: EscalationSubject notifica a los observadores (OperatorDashboardNotifier) cada vez
   que una conversación se escala. El panel de operador además consulta la cola de tickets por
@@ -27,6 +28,13 @@ STATUS_RESOLVED_BY_HUMAN = "resolved_by_human"
 
 ESCALATION_MESSAGE = "Tu pregunta fue enviada a un operador. Por favor espera la respuesta."
 LOW_CONFIDENCE_PREFIX = "No encontré una respuesta segura a tu pregunta. "
+CLARIFY_MESSAGE = (
+    "No entendí bien tu pregunta. ¿Me la puedes escribir de otra forma? "
+    "Por ejemplo: «¿A qué hora abren?» o «¿Cuánto cuesta la pizza?»."
+)
+CLARIFY_LIMIT_MESSAGE = (
+    "Sigo sin entender tu pregunta. Si quieres, pulsa «Hablar con un operador» y una persona te ayuda."
+)
 OUT_OF_SCOPE_MESSAGE = (
     "Solo puedo ayudarte con temas de la cafetería: menú, precios, horarios y formas de pago. "
     "Si tu duda sí es sobre la cafetería, pulsa «Hablar con un operador»."
@@ -42,6 +50,7 @@ class ConversationContext:
     confidence: float = 0.0
     kb_id: Optional[str] = None
     requested_human: bool = False
+    clarify_streak: int = 0  # E-027: veces seguidas que el bot ya pidió aclarar en esta sesión
 
 
 @dataclass(frozen=True)
@@ -130,10 +139,29 @@ class LLMResponseStrategy(ResponseStrategy):
 
 
 class OutOfScopeStrategy(ResponseStrategy):
-    """Pregunta claramente de otro tema: se responde con cortesía, sin Gemini y sin escalar."""
+    """Pregunta de otro tema: se responde con cortesía y sin escalar (no crea ticket).
+
+    Usa el texto de Gemini si lo hay (E-027); si no, el mensaje fijo."""
 
     def resolve(self, context: ConversationContext) -> ResponseResult:
-        return ResponseResult(routed_to=ROUTED_BOT, message=OUT_OF_SCOPE_MESSAGE, status=STATUS_ANSWERED)
+        return ResponseResult(routed_to=ROUTED_BOT, message=context.candidate_answer or OUT_OF_SCOPE_MESSAGE,
+                              status=STATUS_ANSWERED)
+
+
+class ClarifyStrategy(ResponseStrategy):
+    """E-027: el mensaje no se entiende o está incompleto. Pide reescribirlo; no crea ticket.
+
+    Si ya se pidió aclarar `max_in_a_row` veces seguidas, ofrece hablar con un operador (anti-bucle)."""
+
+    def __init__(self, max_in_a_row: int = 2):
+        self.max_in_a_row = max_in_a_row
+
+    def resolve(self, context: ConversationContext) -> ResponseResult:
+        if context.clarify_streak >= self.max_in_a_row:
+            message = CLARIFY_LIMIT_MESSAGE
+        else:
+            message = context.candidate_answer or CLARIFY_MESSAGE
+        return ResponseResult(routed_to=ROUTED_BOT, message=message, status=STATUS_ANSWERED)
 
 
 class HumanFallbackStrategy(ResponseStrategy):

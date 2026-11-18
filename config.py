@@ -72,7 +72,12 @@ LLM_CACHE_SIZE = _get_int("LLM_CACHE_SIZE", 256)
 _thinking = os.getenv("GEMINI_THINKING_BUDGET", "").strip()
 GEMINI_THINKING_BUDGET = int(_thinking) if _thinking.lstrip("-").isdigit() else None
 # Entradas de la base de conocimiento que recibe Gemini como contexto (top-k de ChromaDB)
-LLM_CONTEXT_ENTRIES = _get_int("LLM_CONTEXT_ENTRIES", 3)
+LLM_CONTEXT_ENTRIES = _get_int("LLM_CONTEXT_ENTRIES", 5)
+# E-027: turnos previos de la misma sesión que recibe Gemini (solo de los últimos N minutos) y
+# cuántas veces seguidas puede pedir aclarar antes de ofrecer un operador
+LLM_HISTORY_TURNS = _get_int("LLM_HISTORY_TURNS", 3)
+LLM_HISTORY_MINUTES = _get_int("LLM_HISTORY_MINUTES", 30)
+CLARIFY_MAX_IN_A_ROW = _get_int("CLARIFY_MAX_IN_A_ROW", 2)
 # Fuera de dominio claro: si la mejor confianza S es menor que este valor, se responde que solo se
 # atienden temas de la cafetería (sin Gemini y sin escalar). 0 = solo se usan los ejemplos de rechazo.
 OUT_OF_SCOPE_CONFIDENCE = _get_float("OUT_OF_SCOPE_CONFIDENCE", 0.0)

@@ -110,7 +110,9 @@ Los datos se guardan en el volumen `chatbot_data`, así que sobreviven al reempl
 | `GEMINI_TIMEOUT_SECONDS` | 15 | Tiempo máximo por llamada a Gemini (mínimo 10: la API rechaza valores menores) |
 | `GEMINI_THINKING_BUDGET` | (vacío) | Presupuesto de razonamiento del modelo; 0 lo apaga en los Flash que lo permiten (más rápido) |
 | `LLM_CACHE_SIZE` | 256 | Respuestas de Gemini guardadas en memoria (misma pregunta y mismas entradas = sin gastar cuota) |
-| `LLM_CONTEXT_ENTRIES` | 3 | Entradas de la base de conocimiento que recibe Gemini (top-k de ChromaDB) |
+| `LLM_CONTEXT_ENTRIES` | 5 | Entradas de la base de conocimiento que recibe Gemini (top-k de ChromaDB) |
+| `LLM_HISTORY_TURNS` / `LLM_HISTORY_MINUTES` | 3 / 30 | Turnos previos de la misma sesión que recibe Gemini, solo de los últimos N minutos (E-027) |
+| `CLARIFY_MAX_IN_A_ROW` | 2 | Veces seguidas que el bot pide aclarar antes de ofrecer un operador |
 | `OUT_OF_SCOPE_CONFIDENCE` | 0 | Si la confianza S es menor, se avisa que solo se atienden temas de la cafetería, sin Gemini ni operador. 0 = desactivado (solo ejemplos de rechazo) |
 | `BACKEND_URL` | https://intelligent-chatbot-std8.onrender.com | Dirección del backend (solo en las interfaces); en local, `http://127.0.0.1:8000` |
 | `MAX_MESSAGES` | 15 | Límite de mensajes por sesión de chat |
@@ -163,11 +165,11 @@ Los resultados (CSV y gráficas) se guardan en `evaluation/results/`.
 
 ### 7.2 Respuestas con Gemini (Fase 3)
 Cada pregunta del dominio pasa por este orden (`rag_pipeline.decide`, usado igual por `/api/v1/chat` y por `evaluate_rag.py`):
-1. Si se parece más a un ejemplo de rechazo (o S < `OUT_OF_SCOPE_CONFIDENCE`), el bot avisa que solo atiende temas de la cafetería.
-2. Si Gemini está configurado, recibe las `LLM_CONTEXT_ENTRIES` entradas más cercanas y responde **solo** con ellas en JSON (`source_id`, `answer`). Si no le alcanzan, responde `NO_SE` y la pregunta se escala al operador. Si cita una entrada que no recibió, la respuesta se descarta.
-3. Si Gemini no está configurado o ninguna key responde, se usa la regla de M3 (S ≥ 0.75 o palabras clave): el bot nunca se queda sin responder.
+1. Si Gemini está configurado, se hace **una sola llamada** por mensaje. Gemini recibe las `LLM_CONTEXT_ENTRIES` entradas más cercanas (buscadas con el mensaje y con la pregunta anterior de la sesión) y los últimos `LLM_HISTORY_TURNS` turnos de la misma sesión de los últimos `LLM_HISTORY_MINUTES` minutos, leídos de `conversation_logs` por `user_id` (nunca del navegador). Responde en JSON (`tipo`, `source_id`, `answer`), con `tipo` = `responder` (ruta `llm`), `aclarar` (`clarify`, `ClarifyStrategy`), `fuera_de_tema` (`out_of_scope`) o `escalar` (`human`). **Solo `escalar` crea ticket.** Un `responder` que cita una entrada que no recibió, o un tipo desconocido, se descarta (E-027).
+2. Anti-bucle: si el bot ya pidió aclarar `CLARIFY_MAX_IN_A_ROW` veces seguidas en la sesión, la siguiente aclaración ofrece hablar con un operador (sin crear ticket).
+3. Si Gemini no está configurado o ninguna key responde, se usa la regla de M3: ejemplos de rechazo (o S < `OUT_OF_SCOPE_CONFIDENCE`) = fuera de tema; S ≥ 0.75 o palabras clave = respuesta; si no, operador. El bot nunca se queda sin responder.
 
-La pregunta va delimitada en `<pregunta>` y el prompt le indica ignorar instrucciones dentro de ella (inyección de prompt). Las pruebas (`tests/test_llm.py`) simulan Gemini, así que CI no gasta cuota. Para medir con Gemini real:
+La pregunta va delimitada en `<pregunta>` y el historial en `<conversacion>`, y el prompt le indica ignorar instrucciones dentro de ella (inyección de prompt). Las pruebas (`tests/test_llm.py`) simulan Gemini, así que CI no gasta cuota. Para medir con Gemini real:
 
 ```bash
 python evaluate_rag.py --no-llm   # solo recuperación (sin cuota)
@@ -217,10 +219,15 @@ No necesitas registrarte ni iniciar sesión.
    - los métodos de pago;
    - el menú con precios: desayunos (hasta las 12:00), chilaquiles, antojitos y molletes, sándwiches, paquetes, pizzas, carnitas (viernes y sábado), bebidas, panadería y menú del día.
 3. **Califica la respuesta** con 👍 o 👎.
-4. **Hablar con una persona.** Si el bot no sabe la respuesta, envía tu pregunta a un operador automáticamente. También puedes pedirlo tú: escribe "quiero hablar con un operador" o pulsa **🙋 Hablar con un operador**.
-5. **Espera en línea.** Mantén la ventana abierta mientras el operador responde. Si tarda, su respuesta aparecerá en el chat la próxima vez que interactúes.
-6. **Reseña.** Evalúa la cafetería con estrellas y un comentario desde la barra lateral.
-7. **Límite de la conversación.** Después de 15 mensajes verás "Memoria llena". Recarga la página para empezar otra conversación. Lo que ya preguntaste queda registrado.
+4. **Cómo responde el bot.** Entiende faltas de ortografía y preguntas de seguimiento ("¿aceptan tarjeta?" y luego "y si no"), porque recuerda los últimos 3 mensajes de los últimos 30 minutos de tu conversación. Según tu mensaje, hace una de cuatro cosas:
+   - **Responde** si tiene la información. Si solo tiene una parte, te dice lo que sabe y te sugiere hablar con un operador.
+   - **Te pide que lo reescribas** si no entendió o falta información (por ejemplo, solo "cuánto"). No se envía a un operador. Si te lo pide 2 veces seguidas, a la tercera te sugiere hablar con un operador.
+   - **Te avisa que solo atiende la cafetería** si preguntas por otro tema (trámites, clima, tareas). No se envía a un operador.
+   - **Envía tu pregunta a un operador** si es de la cafetería, se entiende y no tiene la información (por ejemplo, apartar un pedido).
+5. **Hablar con una persona.** También puedes pedirlo tú en cualquier momento: escribe "quiero hablar con un operador" o pulsa **🙋 Hablar con un operador**.
+6. **Espera en línea.** Mantén la ventana abierta mientras el operador responde. Si tarda, su respuesta aparecerá en el chat la próxima vez que interactúes.
+7. **Reseña.** Evalúa la cafetería con estrellas y un comentario desde la barra lateral.
+8. **Límite de la conversación.** Después de 15 mensajes verás "Memoria llena". Recarga la página para empezar otra conversación. Lo que ya preguntaste queda registrado.
 
 ### 🎧 Operador
 
