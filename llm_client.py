@@ -187,7 +187,9 @@ class GeminiClient:
                     continue
                 parsed = self.parse(raw, allowed)
                 if parsed is None:
-                    logger.warning("Gemini %s devolvió una respuesta no válida (intento %d).", label, attempt + 1)
+                    # solo el largo, nunca el contenido: si es 0, el modelo no generó texto (p. ej. tokens agotados)
+                    logger.warning("Gemini %s devolvió una respuesta no válida (intento %d, %d caracteres).",
+                                   label, attempt + 1, len(raw))
                     continue
                 source_id, text = parsed
                 result = LLMAnswer(text, source_id, label, round((time.perf_counter() - started) * 1000, 2))
