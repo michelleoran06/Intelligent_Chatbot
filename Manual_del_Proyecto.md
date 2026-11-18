@@ -156,7 +156,7 @@ Cada respuesta lleva `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Poli
 
 ### 9. Despliegue
 - **Render (backend).** Comando de inicio: `uvicorn main:app --host 0.0.0.0 --port $PORT`. Variables: las de la sección 6. Obligatorias para el login: `OPERATOR_PASSWORD_HASH`, `AUTH_SECRET_KEY` y `ALLOWED_ORIGINS`. Con `TRUSTED_PROXY_HOPS=2` se toma la IP real del cliente detrás de Render y Cloudflare; después de desplegar, compara `ip_detectada` de `GET /api/v1/system` con tu IP pública para confirmarlo.
-- **Streamlit Community Cloud (chat y panel).** En *Settings → Secrets* de cada app agrega `BACKEND_URL = "https://intelligent-chatbot-std8.onrender.com"`. En el panel agrega también `ADMIN_TOKEN` si lo usas.
+- **Streamlit Community Cloud (chat y panel).** En *Settings → Secrets* de cada app agrega `BACKEND_URL = "https://intelligent-chatbot-std8.onrender.com"`. Es la única variable de las dos apps: la contraseña del operador **no** se configura en Streamlit, solo su hash en Render (`OPERATOR_PASSWORD_HASH`).
 - **GitHub Actions (`.github/workflows/ci.yml`).** En cada pull request y en cada push a `main` ejecuta lint, pruebas, la validación del modelo, la construcción de Docker y una prueba de humo. Para que el despliegue dependa de las pruebas:
   1. Desactiva el *auto-deploy* de Render.
   2. Guarda el *deploy hook* de Render como el secreto `RENDER_DEPLOY_HOOK_URL` del repositorio.
@@ -184,13 +184,15 @@ No necesitas registrarte ni iniciar sesión.
 
 ### 🎧 Operador
 
-1. Abre el panel, pestaña **🚨 Casos pendientes**.
+0. Al abrir el panel, escribe la contraseña del operador y pulsa **Entrar**. La sesión dura 8 horas; cuando vence (o si el token deja de ser válido) el panel vuelve solo a la pantalla de inicio de sesión. Usa **🚪 Cerrar sesión** en la barra lateral al terminar. Tras 5 contraseñas incorrectas desde la misma red, el inicio de sesión se bloquea 15 minutos.
+1. Abre la pestaña **🚨 Casos pendientes**.
 2. La cola se actualiza sola cada 10 segundos. Cuando llega un caso nuevo verás un aviso y escucharás un sonido.
 3. Pulsa **🔄 Actualizar lista de casos** para que el caso nuevo aparezca en el selector.
 4. Elige el ticket, escribe la respuesta y pulsa **Enviar respuesta y cerrar caso**. La respuesta llega al chat del usuario y el ticket sale de la cola. Si otro operador ya lo atendió, el panel te avisa.
 
 ### 🛠️ Administrador
 
+- **🔐 Bitácora:** quién hizo qué y cuándo: inicios de sesión (correctos, fallidos y bloqueados), tickets resueltos y cambios a la base de conocimiento, con la IP.
 - **📊 Estadísticas:** número de conversaciones, cuántas resolvió el bot, tasa de escalamiento, tiempo medio y percentil 95 de respuesta, y calificaciones 👍/👎, por tipo de usuario.
 - **⭐ Reseñas:** reseñas del lugar y calificación promedio.
 - **📚 Base de conocimiento:** crear, editar y eliminar entradas. Cada entrada tiene:
