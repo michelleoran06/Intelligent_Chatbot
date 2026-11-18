@@ -22,7 +22,10 @@ services:
       EMBEDDING_BATCH_SIZE: "16"
       MALLOC_ARENA_MAX: "2"
       MAX_QUERY_LENGTH: "500"
-      ADMIN_TOKEN: ${ADMIN_TOKEN:-}
+      # Login del operador: se toman de tu .env (sin ellos el login se rechaza siempre)
+      OPERATOR_PASSWORD_HASH: ${OPERATOR_PASSWORD_HASH:-}
+      AUTH_SECRET_KEY: ${AUTH_SECRET_KEY:-}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:8501,http://localhost:8502}
     volumes:
       - chatbot_data:/app/data   # SQLite y ChromaDB sobreviven al reemplazo del contenedor
     healthcheck:
@@ -51,7 +54,6 @@ services:
       - "8502:8502"
     environment:
       BACKEND_URL: http://backend:8000
-      ADMIN_TOKEN: ${ADMIN_TOKEN:-}
     depends_on:
       backend:
         condition: service_healthy

@@ -97,7 +97,14 @@ Los datos se guardan en el volumen `chatbot_data`, así que sobreviven al reempl
 | `KEYWORD_CONFIDENCE` | 0.75 | Confianza asignada al respaldo por palabras clave |
 | `MAX_QUERY_LENGTH` | 500 | Máximo de caracteres por pregunta |
 | `DATA_DIR` | ./data | Carpeta de SQLite y ChromaDB |
-| `ADMIN_TOKEN` | (vacío) | Si se define, exige el token para modificar la base de conocimiento |
+| `ENV` | development | `production` apaga `/docs`, `/redoc` y `/openapi.json`, activa HSTS y exige los secretos de abajo para arrancar |
+| `OPERATOR_PASSWORD_HASH` | (vacío) | Hash bcrypt de la contraseña del operador (mínimo 12 caracteres), generado con `python scripts/hash_password.py`. Vacío = nadie puede iniciar sesión |
+| `AUTH_SECRET_KEY` | (vacío) | Clave aleatoria de al menos 32 caracteres para firmar los tokens de sesión. Vacío = nadie puede iniciar sesión |
+| `ALLOWED_ORIGINS` | (vacío) | Orígenes permitidos por CORS, separados por comas (las URLs de las apps de Streamlit) |
+| `TOKEN_TTL_HOURS` | 8 | Duración de la sesión del operador |
+| `LOGIN_MAX_FAILURES` / `LOGIN_LOCK_MINUTES` | 5 / 15 | Intentos fallidos de login por IP antes de bloquearla, y minutos de bloqueo |
+| `RATE_LIMIT_CHAT` / `RATE_LIMIT_LOGIN` / `RATE_LIMIT_REVIEWS` | 20/minute, 5/minute, 5/minute | Peticiones máximas por IP a `/chat`, `/auth/login` y `POST /reviews` (respuesta 429) |
+| `TRUSTED_PROXY_HOPS` | 0 | Proxies de confianza al final de `X-Forwarded-For` para obtener la IP real del cliente. 0 en local y Docker; en Render, ver la sección 9 |
 | `BACKEND_URL` | https://intelligent-chatbot-std8.onrender.com | Dirección del backend (solo en las interfaces); en local, `http://127.0.0.1:8000` |
 | `MAX_MESSAGES` | 15 | Límite de mensajes por sesión de chat |
 | `EMBEDDING_MODEL` | default | `default` = all-MiniLM-L6-v2; otro valor = modelo de sentence-transformers |
@@ -114,6 +121,8 @@ Copia `.env.example` como `.env` para tenerlas a mano. El archivo `.env` **nunca
 ```bash
 pytest tests/test_unit.py -v           # pruebas unitarias (Sección 15.2)
 pytest tests/test_integration.py -v    # pruebas de integración (Sección 15.3)
+pytest tests/test_security.py -v       # pruebas de seguridad (login, tokens, IDOR, rate limit)
+pytest --cov=. --cov-report=term-missing   # toda la suite con cobertura
 pytest -m chroma -v                    # integración con ChromaDB real
 python calibrate_confidence.py         # validación del modelo (Sección 16)
 python memory_test.py                  # perfilado de memoria (Sección 15.4)
@@ -125,7 +134,18 @@ python experiment_quality.py           # compara 4 configuraciones del modelo (S
 
 Los resultados (CSV y gráficas) se guardan en `evaluation/results/`.
 
-> **Sobre la prueba de carga:** cada pregunta escalada crea un ticket. Córrela contra los contenedores locales y no contra producción.
+> **Sobre la prueba de carga:** cada pregunta escalada crea un ticket. Córrela contra los contenedores locales y no contra producción. Como `/chat` acepta 20 peticiones por minuto por IP, para la prueba de carga local sube el límite (por ejemplo, `RATE_LIMIT_CHAT=100000/minute`).
+
+### 7.1 Seguridad de la API
+| Endpoint | Acceso |
+|---|---|
+| `GET /health` | Público; solo responde `{"status": "ok"}` |
+| `POST /api/v1/chat`, `POST /api/v1/reviews` | Públicos, con límite de peticiones por IP |
+| `GET /api/v1/ticket/{public_id}?user_id=…`, `POST /api/v1/ticket/{public_id}/feedback` | Públicos, pero solo para el dueño del ticket: `public_id` es un UUID y el `user_id` debe coincidir |
+| `POST /api/v1/auth/login` | Público; 5 por minuto y bloqueo de 15 min por IP tras 5 fallos |
+| `/resolve`, `/tickets/escalated`, `/stats`, `/errors`, `GET /reviews`, todo `/kb`, `/system`, `/operator-actions`, `/auth/check` | Solo con `Authorization: Bearer <token>` del operador |
+
+Cada respuesta lleva `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Content-Security-Policy` y `Cache-Control: no-store` (más HSTS en producción). Un error 500 nunca devuelve detalles internos. Los inicios de sesión, resoluciones de tickets y cambios a la base de conocimiento quedan en la tabla `operator_actions` con la IP y la hora.
 
 ### 8. Actualizar la información de la cafetería
 - **Cambios puntuales:** se hacen desde el panel, en la pestaña "📚 Base de conocimiento".
@@ -135,7 +155,7 @@ Los resultados (CSV y gráficas) se guardan en `evaluation/results/`.
   3. Reiniciar el backend: actualiza las entradas predeterminadas y respeta las que creó el Administrador.
 
 ### 9. Despliegue
-- **Render (backend).** Comando de inicio: `uvicorn main:app --host 0.0.0.0 --port $PORT`. Variables: las de la sección 6.
+- **Render (backend).** Comando de inicio: `uvicorn main:app --host 0.0.0.0 --port $PORT`. Variables: las de la sección 6. Obligatorias para el login: `OPERATOR_PASSWORD_HASH`, `AUTH_SECRET_KEY` y `ALLOWED_ORIGINS`. Con `TRUSTED_PROXY_HOPS=2` se toma la IP real del cliente detrás de Render y Cloudflare; después de desplegar, compara `ip_detectada` de `GET /api/v1/system` con tu IP pública para confirmarlo.
 - **Streamlit Community Cloud (chat y panel).** En *Settings → Secrets* de cada app agrega `BACKEND_URL = "https://intelligent-chatbot-std8.onrender.com"`. En el panel agrega también `ADMIN_TOKEN` si lo usas.
 - **GitHub Actions (`.github/workflows/ci.yml`).** En cada pull request y en cada push a `main` ejecuta lint, pruebas, la validación del modelo, la construcción de Docker y una prueba de humo. Para que el despliegue dependa de las pruebas:
   1. Desactiva el *auto-deploy* de Render.

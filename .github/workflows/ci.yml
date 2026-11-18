@@ -31,6 +31,9 @@ jobs:
       - name: Pruebas de integración
         run: pytest tests/test_integration.py -v
 
+      - name: Pruebas de seguridad y configuración (Fase 2)
+        run: pytest tests/test_security.py tests/test_config.py -v
+
       - name: Integración con ChromaDB real
         run: pytest -m chroma -v
 
