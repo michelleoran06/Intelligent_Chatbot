@@ -213,6 +213,30 @@ Cada respuesta lleva `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Poli
   2. Guarda el *deploy hook* de Render como el secreto `RENDER_DEPLOY_HOOK_URL` del repositorio.
   3. Opcionalmente, guarda la URL pública del backend como `BACKEND_PUBLIC_URL`.
 
+#### 9.1 Paso a producción y verificación (Fase 5)
+Variables del backend en Render:
+- **Obligatorias con `ENV=production`:** `OPERATOR_PASSWORD_HASH`, `AUTH_SECRET_KEY` y `ALLOWED_ORIGINS`. Si falta una o tiene un formato inseguro, el backend **no arranca**.
+- **Gemini:** `GEMINI_API_KEY_1`, `GEMINI_API_KEY_2` (respaldo) y `GEMINI_MODEL=gemini-3.5-flash-lite`.
+- **Otras:** `TRUSTED_PROXY_HOPS` (ver E-017).
+
+Orden:
+1. **Revisar el formato de las variables, sin red:** `python scripts/check_prod_env.py`. Pide los valores con `getpass` y nunca los imprime. Aplica las mismas reglas que `config.validate_config` y, si escribes la contraseña, comprueba que coincide con el hash. Solo sigue si dice OK.
+2. **Fusionar la PR en `main`.**
+3. **En Render, *Environment*:** agregar `ENV=production` y guardar. Render vuelve a desplegar, y el plan gratuito borra la base (E-031): exporta antes lo que necesites.
+4. **Esperar a que Render diga *Live*.** Si el despliegue falla, el log dice qué variable falta. Para volver a la versión anterior, quita `ENV` y el backend arranca como antes.
+5. **Correr la prueba de humo:** `python scripts/smoke_prod.py`. Verifica:
+   - `/health`;
+   - que `/docs`, `/redoc` y `/openapi.json` den 404;
+   - que un endpoint del operador sin token dé 401;
+   - 1 login incorrecto (401) y el login correcto (200);
+   - que Gemini esté configurado;
+   - una pregunta normal (ruta `llm`);
+   - la pregunta de la colegiatura (fuera de tema u operador);
+   - un intento de inyección de prompt (no revela el prompt);
+   - la exportación en CSV.
+
+   Muestra al final la IP con la que te ve el backend, para comprobar E-017. **No lo corras 5 veces seguidas sin un login correcto:** 5 intentos fallidos bloquean tu IP 15 minutos.
+
 ---
 
 ## Parte 2: Manual de uso
@@ -245,6 +269,7 @@ No necesitas registrarte ni iniciar sesión.
 2. La cola se actualiza sola cada 10 segundos. Cuando llega un caso nuevo verás un aviso y escucharás un sonido.
 3. Pulsa **🔄 Actualizar lista de casos** para que el caso nuevo aparezca en el selector.
 4. Elige el ticket, escribe la respuesta y pulsa **Enviar respuesta y cerrar caso**. La respuesta llega al chat del usuario y el ticket sale de la cola. Si otro operador ya lo atendió, el panel te avisa.
+5. **Exportar conversaciones.** Con el token de la sesión, `GET /api/v1/conversations?since=<fecha ISO>` devuelve un CSV con hora, sesión, pregunta, respuesta, ruta y ticket. La base del plan gratuito de Render se borra en cada despliegue o reinicio: exporta antes de desplegar (E-031).
 
 ### 🛠️ Administrador
 
