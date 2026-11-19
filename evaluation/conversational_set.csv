@@ -1,0 +1,41 @@
+query,prev_query,expected,expected_tipo,category
+a q ora avren el savado,,horarios,responder,ortografia
+kuanto cuesta la pisa entera,,pizzas,responder,ortografia
+tienen chilakiles con uevo,,chilaquiles,responder,ortografia
+aseptan tarjeta de debito,,pagos,responder,ortografia
+donde estan hubicados,,ubicacion,responder,ortografia
+ay jugo naturl,,bebidas,responder,ortografia
+precio del sandwich clu,,sandwiches,responder,ortografia
+q incluye el menu del dia,,menu_del_dia,responder,ortografia
+ke dias ay carnitas,,carnitas,responder,ortografia
+venden galletas de abena,,postres,responder,ortografia
+y si n o,¿Aceptan tarjeta?,pagos,responder,seguimiento
+y el sabado,¿A qué hora abren entre semana?,horarios,responder,seguimiento
+y por rebanada,¿Cuánto cuesta la pizza completa?,pizzas,responder,seguimiento
+hasta que hora los sirven,¿Qué desayunos tienen?,desayunos,responder,seguimiento
+y con cecina?,¿Cuánto cuestan los chilaquiles?,chilaquiles,responder,seguimiento
+y por kilo cuanto,¿Qué días hay carnitas?,carnitas,responder,seguimiento
+y para llevar,¿Cuánto cuesta el menú del día?,menu_del_dia,responder,seguimiento
+cual es el mas barato,¿Tienen paquetes de comida?,paquetes,responder,seguimiento
+y el agua cuanto,¿Qué bebidas tienen?,bebidas,responder,seguimiento
+y en la tarde siguen abiertos,¿Dónde están?,horarios,responder,seguimiento
+y si n o,,ESCALATE,aclarar,incompleta
+cuanto,,ESCALATE,aclarar,incompleta
+eso,,ESCALATE,aclarar,incompleta
+y el otro,,ESCALATE,aclarar,incompleta
+lo de ayer,,ESCALATE,aclarar,incompleta
+me das uno,,ESCALATE,aclarar,incompleta
+y luego?,,ESCALATE,aclarar,incompleta
+a como,,ESCALATE,aclarar,incompleta
+el de siempre,,ESCALATE,aclarar,incompleta
+ese cuanto sale,,ESCALATE,aclarar,incompleta
+que pasa si no tengo dinero,,pagos,responder,relacionada
+se me olvido la cartera puedo pagar con el celular,,pagos,responder,relacionada
+tengo hambre en la mañana que hay,,desayunos,responder,relacionada
+quiero algo dulce,,postres,responder,relacionada
+tengo sed,,bebidas,responder,relacionada
+se puede apartar una pizza para la tarde,,ESCALATE,escalar,relacionada
+me fian?,,ESCALATE,escalar,relacionada
+puedo pagar con vales de despensa,,ESCALATE,escalar,relacionada
+cual es el clima hoy,,ESCALATE,fuera_de_tema,relacionada
+cuando es el examen de calculo,,ESCALATE,fuera_de_tema,relacionada

@@ -17,7 +17,7 @@ Cada entrada tiene:
 - keywords: palabras clave para el respaldo léxico (se necesitan 2 coincidencias)
 """
 
-KB_SEED_VERSION = "2026-10-cafeteria-v2"
+KB_SEED_VERSION = "2026-11-cafeteria-v3"  # v3: variantes informales (E-027)
 
 DEFAULT_ENTRIES = [
     {
@@ -86,8 +86,7 @@ DEFAULT_ENTRIES = [
             "¿Venden huevos?",
             "¿Tienen omelette?",
             "¿Tienen enchiladas o sopes?",
-            "¿Tienen huevos rancheros o divorciados?",
-        ],
+            "¿Tienen huevos rancheros o divorciados?", "¿Qué hay para desayunar?", "Vengo sin desayunar, ¿qué venden?", "¿Qué venden temprano para comer?", "¿Qué hay de comer por la mañana?"],
         "keywords": ["desayuno", "desayunar", "huevo", "omelette", "enchilada", "sope", "rancheros",
                      "divorciados", "mexicana", "salchicha", "tocino", "jamon"],
     },
@@ -177,8 +176,7 @@ DEFAULT_ENTRIES = [
             "¿Qué sabores de pizza tienen?",
             "¿Cuánto cuesta una rebanada de pizza?",
             "¿Tienen pizza hawaiana?",
-            "¿Cuánto cuesta la caja para llevar la pizza?",
-        ],
+            "¿Cuánto cuesta la caja para llevar la pizza?", "¿Cuánto sale una pizza?", "¿Venden pizza completa o solo rebanadas?"],
         "keywords": ["pizza", "rebanada", "hawaiana", "molida", "frias", "completa", "entera", "caja", "sabores"],
     },
     {
@@ -207,8 +205,7 @@ DEFAULT_ENTRIES = [
             "¿Venden agua?",
             "¿Tienen jugos naturales?",
             "¿Cuánto cuesta el agua del día?",
-            "¿Qué hay de tomar?",
-        ],
+            "¿Qué hay de tomar?", "¿Qué venden para la sed?", "Quiero algo para beber", "¿Hay algo frío de tomar?"],
         "keywords": ["bebida", "tomar", "agua", "jugo", "natural", "sed", "beber"],
     },
     {
