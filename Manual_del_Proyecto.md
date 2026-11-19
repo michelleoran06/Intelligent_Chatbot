@@ -5,7 +5,7 @@ Instrucciones para instalar, ejecutar, probar y desplegar el sistema, y manual d
 ## Parte 1: Manual técnico
 
 ### 1. Requisitos previos
-- **Python 3.10 o superior** (la imagen de Docker usa 3.11).
+- **Python 3.12** (el mismo del CI y de la imagen de Docker).
 - **Git**.
 - **Docker Desktop** (opcional, para correr todo en contenedores).
 - Conexión a internet la primera vez: ChromaDB descarga su modelo de embeddings (all-MiniLM-L6-v2, unos 80 MB).
