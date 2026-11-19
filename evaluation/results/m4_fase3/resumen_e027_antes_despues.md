@@ -41,3 +41,24 @@ Latencia promedio de Gemini en la corrida "después": 0.9 a 1.1 s (p95 de 1.4 a 
 - El escalamiento del set conversacional baja a casi la mitad, y el tipo correcto sube de 45 % a 82.5 %.
 - En `test_set` aparecen 2 falsos positivos (antes 0): precisión 97.6 %. El F1 se mantiene en 96.4 %.
 - Las preguntas incompletas ya no se escalan: se pide aclararlas (27.5 % del set conversacional).
+
+## E-028: mitigación del sesgo de lenguaje informal (corrida `despues_kb`)
+
+Mismo código, umbral, prompt y sets; solo se agregaron 9 variantes cotidianas a la base de conocimiento
+(`KB_SEED_VERSION` v3). Gemini `gemini-3.5-flash-lite`, contexto top-3 (valor del `.env` local), `conversational_set`, N = 40.
+
+| Métrica | después | despues_kb |
+|---|---|---|
+| Escaladas al operador | 22.5 % | 17.5 % |
+| Respondidas | 45.0 % | 50.0 % |
+| Pidió aclarar | 27.5 % | 27.5 % |
+| Fuera de tema | 5.0 % | 5.0 % |
+| Tipo correcto | 82.5 % | 87.5 % |
+| Accuracy | 82.5 % | 87.5 % |
+| Precision | 100.0 % | 100.0 % |
+| Recall | 72.0 % | 80.0 % |
+| F1 | 83.7 % | 88.9 % |
+| Matriz | TP 18, FP 0, FN 7, TN 15 | TP 20, FP 0, FN 5, TN 15 |
+| Latencia promedio / p95 | | 982 ms / 1,310 ms |
+
+Rutas en `despues_kb`: llm 20, clarify 11, human 7, out_of_scope 2. Respaldos sin Gemini: 0.
