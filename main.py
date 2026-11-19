@@ -12,7 +12,10 @@ Seguridad (Fase 2 M4): los endpoints del operador exigen un token (security.requ
 solo ve el public_id (UUID) de sus tickets, hay límite de peticiones por IP (slowapi), CORS restringido,
 encabezados de seguridad y /docs apagado en producción.
 """
+import csv
+import io
 import logging
+from datetime import datetime, timedelta, timezone
 import time
 from contextlib import asynccontextmanager
 import uuid
@@ -22,7 +25,7 @@ from anyio import to_thread
 from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel, Field
 from slowapi import Limiter
 from slowapi.errors import RateLimitExceeded
@@ -528,6 +531,28 @@ def add_review(request: Request, payload: ReviewPayload):
         _safe_log_error("/api/v1/reviews", f"{type(exc).__name__}: {exc}")
         raise HTTPException(status_code=500, detail="Error al guardar la reseña.")
     return {"status": "success", "review_id": review_id}
+
+
+@app.get("/api/v1/conversations", dependencies=OPERATOR)
+def export_conversations(request: Request, since: str = ""):
+    """Exporta en CSV las conversaciones desde `since` (ISO 8601; con zona, p. ej. 2026-11-18T18:30-06:00).
+
+    Solo para el operador. Sin `since`, las de las últimas 24 horas."""
+    try:
+        start = datetime.fromisoformat(since) if since else datetime.now(timezone.utc) - timedelta(hours=24)
+    except ValueError:
+        raise HTTPException(status_code=422, detail="since debe ser una fecha ISO, p. ej. 2026-11-18T18:30-06:00")
+    if start.tzinfo is not None:
+        start = start.astimezone(timezone.utc).replace(tzinfo=None)
+    rows = db.export_conversations(start)
+    _audit("export_conversations", since or "24h", request)
+    buffer = io.StringIO()
+    fields = ["hora_utc", "sesion", "tipo_usuario", "pregunta", "respuesta", "ruta", "metodo", "enviado_a", "ticket"]
+    writer = csv.DictWriter(buffer, fieldnames=fields)
+    writer.writeheader()
+    writer.writerows(rows)
+    return Response(content="\ufeff" + buffer.getvalue(), media_type="text/csv; charset=utf-8",
+                    headers={"Content-Disposition": 'attachment; filename="conversaciones.csv"'})
 
 
 @app.get("/api/v1/reviews", dependencies=OPERATOR)

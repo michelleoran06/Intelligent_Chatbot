@@ -409,3 +409,27 @@ def test_script_rechaza_contrasena_corta_o_distinta(monkeypatch, capsys, answers
     monkeypatch.setattr(script.getpass, "getpass", lambda _prompt: next(it))
     assert script.main() == 1
     assert "$2b$" not in capsys.readouterr().out
+
+
+# ------------------------------------------------------------------ exportación de conversaciones
+def test_exportar_conversaciones_requiere_operador(client):
+    assert client.get("/api/v1/conversations").status_code == 401
+
+
+def test_exportar_conversaciones_csv_desde_una_hora(client):
+    from datetime import timedelta
+    import database as db
+    db.save_log(user_id="estudiante_viejo000000", user_type="estudiante", query="vieja", response="r",
+                score=0.9, routed_to="bot", route="llm")
+    with db.session_scope() as session:
+        row = session.query(db.ConversationLog).filter(db.ConversationLog.query == "vieja").one()
+        row.timestamp = db.utcnow() - timedelta(hours=3)
+    db.save_log(user_id="estudiante_nuevo000000", user_type="estudiante", query="¿A qué hora abren?",
+                response="A las 7:00", score=0.9, routed_to="bot", route="llm")
+    since = (db.utcnow() - timedelta(hours=1)).isoformat() + "+00:00"
+    res = client.get("/api/v1/conversations", params={"since": since}, headers=operator_headers())
+    assert res.status_code == 200 and res.headers["content-type"].startswith("text/csv")
+    text = res.text
+    assert "pregunta" in text and "¿A qué hora abren?" in text and "vieja" not in text
+    assert client.get("/api/v1/conversations", params={"since": "ayer"},
+                      headers=operator_headers()).status_code == 422

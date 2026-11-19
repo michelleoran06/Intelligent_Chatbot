@@ -270,6 +270,27 @@ def clarify_streak(turns: List[dict]) -> int:
     return streak
 
 
+def export_conversations(since: datetime, limit: int = 5000) -> List[dict]:
+    """Conversaciones desde `since` (UTC, sin zona) para exportar a CSV, de la más vieja a la más nueva."""
+    with session_scope() as session:
+        rows = (session.query(ConversationLog)
+                .filter(ConversationLog.timestamp >= since)
+                .order_by(ConversationLog.id.asc())
+                .limit(limit)
+                .all())
+        return [{
+            "hora_utc": row.timestamp.isoformat(sep=" ", timespec="seconds") if row.timestamp else "",
+            "sesion": row.user_id,
+            "tipo_usuario": row.user_type,
+            "pregunta": row.query,
+            "respuesta": row.response,
+            "ruta": row.route or "",
+            "metodo": row.method or "",
+            "enviado_a": row.routed_to,
+            "ticket": row.public_id if row.routed_to != "bot" else "",
+        } for row in rows]
+
+
 def update_ticket(ticket_id: int, manual_response: str) -> str:
     """Devuelve 'resolved', 'not_found' o 'not_pending'."""
     with session_scope() as session:
