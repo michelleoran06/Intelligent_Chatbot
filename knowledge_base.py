@@ -17,7 +17,7 @@ Cada entrada tiene:
 - keywords: palabras clave para el respaldo léxico (se necesitan 2 coincidencias)
 """
 
-KB_SEED_VERSION = "2026-11-cafeteria-v3"  # v3: variantes informales (E-027)
+KB_SEED_VERSION = "2026-11-cafeteria-v4"  # v3: variantes informales (E-027); v4: cierre del sábado (E-032)
 
 DEFAULT_ENTRIES = [
     {
@@ -25,7 +25,7 @@ DEFAULT_ENTRIES = [
         "category": "Horarios",
         "answer": (
             "La cafetería abre de lunes a sábado. De lunes a viernes el servicio es de 7:00 a.m. a 5:00 p.m. "
-            "y los sábados solo se abre medio día. Las puertas se abren desde las 6:30 a.m., pero la venta "
+            "y los sábados solo se abre medio día: se cierra a las 12:00 p.m. Las puertas se abren desde las 6:30 a.m., pero la venta "
             "empieza a las 7:00 a.m. Los desayunos se sirven hasta las 12:00 p.m."
         ),
         "questions": [
@@ -34,6 +34,7 @@ DEFAULT_ENTRIES = [
             "¿Cuál es el horario de la cafetería?",
             "¿Qué días abren?",
             "¿Abren los sábados?",
+            "¿Hasta qué hora abren los sábados?",
             "¿Abren los domingos?",
             "¿Desde qué hora puedo desayunar?",
             "¿Hasta qué hora sirven desayunos?",
