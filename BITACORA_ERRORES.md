@@ -53,4 +53,22 @@ Verificación hecha por la usuaria en producción después de fusionar las PRs #
 | IP de `login_ok` en la pestaña 🔐 Bitácora frente a la IP pública de la usuaria | Pendiente de confirmar. | E-017 |
 | Chat del usuario | Responde normal. | E-005, E-010, E-018 |
 
+## Evidencia de despliegue: Fase 5 (ENV=production)
+
+Antes del cambio, `scripts/check_prod_env.py` revisa el formato de las variables. Después, `scripts/smoke_prod.py` corre contra producción. Las dos tienen pruebas con HTTP simulado en `tests/test_scripts.py`. Esta tabla se llena con la salida real del script.
+
+| Verificación | Resultado | Hallazgos relacionados |
+|---|---|---|
+| `check_prod_env.py` con los valores de Render | Pendiente | E-003, E-013 |
+| `GET /health` | Pendiente | E-011 |
+| `/docs`, `/redoc` y `/openapi.json` dan 404 | Pendiente | E-013 |
+| Endpoint del operador sin token da 401 | Pendiente | E-004 |
+| 1 login incorrecto da 401 y el login correcto da 200 | Pendiente | E-003 |
+| Gemini configurado (modelo y 2 keys) | Pendiente | E-001, E-009 |
+| Pregunta normal por la ruta `llm` | Pendiente | E-027 |
+| Pregunta de la colegiatura: fuera de tema u operador | Pendiente | E-001 |
+| Inyección de prompt sin filtrar el prompt | Pendiente | E-023 |
+| Exportación en CSV | Pendiente | E-031 |
+| IP detectada igual a la IP pública | Pendiente | E-017 |
+
 <!-- Claude Code: agrega una fila por cada error nuevo (E-010, E-011, …) y actualiza Solución / Evidencia / Estado al corregir. -->
