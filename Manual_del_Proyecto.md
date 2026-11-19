@@ -161,6 +161,15 @@ python experiment_quality.py           # compara 4 configuraciones del modelo (S
 
 Los resultados (CSV y gráficas) se guardan en `evaluation/results/`.
 
+**Compuertas del CI (Fase 4).** Además de ruff y las pruebas por etapa, el CI corre toda la suite con `--cov-fail-under=77` (falla si la cobertura baja de 77 %) y sube `coverage.xml` como artefacto. También corre `pip-audit -r requirements.txt` (dependencias con vulnerabilidades conocidas; las 4 de chromadb sin versión corregida se ignoran por ID, ver E-029) y `bandit -r . -x ./tests --severity-level medium` (falla con hallazgos de severidad media o alta; los de severidad baja están revisados en E-030). Para correrlas en local:
+
+```bash
+pip install pip-audit bandit
+pytest --cov=. --cov-report=term-missing --cov-fail-under=77
+pip-audit -r requirements.txt
+bandit -r . -x ./tests
+```
+
 > **Sobre la prueba de carga:** cada pregunta escalada crea un ticket. Córrela contra los contenedores locales y no contra producción. Como `/chat` acepta 20 peticiones por minuto por IP, para la prueba de carga local sube el límite (por ejemplo, `RATE_LIMIT_CHAT=100000/minute`).
 
 ### 7.2 Respuestas con Gemini (Fase 3)

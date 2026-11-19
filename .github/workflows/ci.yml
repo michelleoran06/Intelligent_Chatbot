@@ -40,6 +40,33 @@ jobs:
       - name: Integración con ChromaDB real
         run: pytest -m chroma -v
 
+      # Fase 4 M4: suite completa con cobertura. Mínimo 77 % (medido: 78 %; Fase 0: 62 %).
+      - name: Cobertura mínima (77 %)
+        run: pytest --cov=. --cov-report=term-missing --cov-report=xml --cov-fail-under=77 -q
+
+      - name: Guardar reporte de cobertura
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cobertura
+          path: coverage.xml
+
+      # Dependencias con vulnerabilidades conocidas. Las 4 de chromadb se ignoran de forma explícita:
+      # no tienen versión corregida y solo afectan al servidor HTTP de Chroma, que este proyecto no usa
+      # (usa PersistentClient embebido). Detalle en BITACORA_ERRORES.md, E-029.
+      - name: Auditoría de dependencias (pip-audit)
+        run: |
+          pip install pip-audit
+          pip-audit -r requirements.txt --ignore-vuln PYSEC-2026-311 --ignore-vuln PYSEC-2026-3813 \
+            --ignore-vuln PYSEC-2026-3814 --ignore-vuln PYSEC-2026-3815
+
+      # Análisis de seguridad del código. Falla con hallazgos de severidad media o alta;
+      # los 10 de severidad baja están revisados en BITACORA_ERRORES.md, E-030.
+      - name: Análisis de seguridad del código (bandit)
+        run: |
+          pip install bandit
+          bandit -r . -x ./tests --severity-level medium
+
       - name: Validación del modelo (reporte)
         run: python calibrate_confidence.py --no-plot
 
